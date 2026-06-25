@@ -96,30 +96,23 @@
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
 - 版本更新亮点：
-  - 项目版本从 v1.3.0 升级至 v2.0.0。
-  - 查看修改内容移步：docs/frontend-optimization-progress.md
-  - 为确保发布安全，已从 config.toml 文件中清除本地 DeepSeek API 密钥和 Pexels API 密钥值。
+  - 查看修改内容请移步：docs/frontend-optimization-progress.md
   - 新增最新 WebUI 截图：docs/webui-v2.0.0.png。
   - 提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
   - 包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
-  - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。Windows
+  - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。
   - 主题三模式完整适配、抖音素材链路合规升级、任务系统大重构、Main.py 模块化完成。
 - 版本包：
   - Windows 版本包生成为：
   - dist/MoneyPrinterTurbo_Modification_v2.0.0_Windows.zip。
   - 从解压后的项目目录运行 webui.bat 即可启动 WebUI。
-- 验证
-  - WebUI 已成功启动，地址为http://127.0.0.1:8501。
-  - 最新屏幕截图确认标题显示 MoneyPrinterTurbo v2.0.0。
-  
 - 修复内容（9 项） 
   - 以主题系统为主，覆盖 Dark/System 主题显示异常、按钮文字颜色、抖音模式切换体验、顶部标题遮挡、字幕滑块换行、文案按钮换行、基础设置乱码和文件头 BOM 问题。
-
 - 新增内容 分四大块：
   - 抖音素材：从上传本地改为授权在线素材源，新增 metadata 模式（第三方接口 + 解析服务）和 AI 增强钩子
   - 任务系统：后台化、软中止、取消检查点、任务历史面板（搜索/筛选/分页/重试/参数回填）
   - 主题 & 布局：theme.py 集中管理、四面板同行对齐、顶部同步展开、任务状态三列摘要、分页控件优化
-  - 模块化拆分：Main.py 拆出 15+ 独立模块；发版准备（v2.0.0 + Windows 一键包 + Release 文档）
+  - 模块化拆分：Main.py 拆出 15+ 独立模块；
 
 ## 视频演示 📺
 
