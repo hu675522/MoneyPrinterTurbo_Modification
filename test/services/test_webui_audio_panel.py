@@ -13,6 +13,11 @@ from app.services import voice
 
 
 class TestWebuiAudioPanel(unittest.TestCase):
+    def test_get_tts_servers_includes_elevenlabs(self):
+        servers = audio_panel.get_tts_servers(lambda key: key)
+
+        self.assertIn(("elevenlabs", "ElevenLabs TTS"), servers)
+
     def test_get_saved_tts_server_index_returns_saved_or_default(self):
         servers = [("a", "A"), ("b", "B")]
 
@@ -33,6 +38,19 @@ class TestWebuiAudioPanel(unittest.TestCase):
                 audio_panel.filter_voices_for_tts_server("azure-tts-v2"),
                 ["zh-CN-XiaoxiaoV2Neural-Female"],
             )
+
+    def test_filter_voices_for_elevenlabs_uses_api_key(self):
+        with patch.object(
+            audio_panel.voice,
+            "get_elevenlabs_voices",
+            return_value=["elevenlabs:abc:Adam"],
+        ) as get_voices:
+            self.assertEqual(
+                audio_panel.filter_voices_for_tts_server("elevenlabs", "api-key"),
+                ["elevenlabs:abc:Adam"],
+            )
+
+        get_voices.assert_called_once_with("api-key")
 
     def test_build_friendly_voice_names_translates_gender_tokens(self):
         names = audio_panel.build_friendly_voice_names(

@@ -36,7 +36,6 @@ st.set_page_config(
 
 apply_streamlit_style()
 
-# 定义资源目录
 font_dir = os.path.join(root_dir, "resource", "fonts")
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
 system_locale = utils.get_system_locale()
@@ -49,9 +48,7 @@ init_session_state(
     default_system_prompt=llm.DEFAULT_SCRIPT_SYSTEM_PROMPT,
 )
 
-# 加载语言文件
 locales = utils.load_locales(i18n_dir)
-
 
 init_log(root_dir)
 
@@ -59,6 +56,7 @@ init_log(root_dir)
 def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
+
 
 render_main_page(
     config=config,

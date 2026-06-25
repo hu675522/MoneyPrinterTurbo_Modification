@@ -15,6 +15,7 @@ def get_tts_servers(tr) -> list[tuple[str, str]]:
         ("siliconflow", "SiliconFlow TTS"),
         ("gemini-tts", "Google Gemini TTS"),
         ("mimo-tts", "Xiaomi MiMo TTS"),
+        ("elevenlabs", "ElevenLabs TTS"),
     ]
 
 
@@ -25,7 +26,9 @@ def get_saved_tts_server_index(tts_servers: list[tuple[str, str]], saved_tts_ser
     return 0
 
 
-def filter_voices_for_tts_server(selected_tts_server: str) -> list[str]:
+def filter_voices_for_tts_server(
+    selected_tts_server: str, elevenlabs_api_key: str = ""
+) -> list[str]:
     if selected_tts_server == voice.NO_VOICE_NAME:
         return [voice.NO_VOICE_NAME]
     if selected_tts_server == "siliconflow":
@@ -34,6 +37,8 @@ def filter_voices_for_tts_server(selected_tts_server: str) -> list[str]:
         return voice.get_gemini_voices()
     if selected_tts_server == "mimo-tts":
         return voice.get_mimo_voices()
+    if selected_tts_server == "elevenlabs":
+        return voice.get_elevenlabs_voices(elevenlabs_api_key)
 
     all_voices = voice.get_all_azure_voices(filter_locals=None)
     if selected_tts_server == "azure-tts-v2":
@@ -115,7 +120,18 @@ def render_audio_panel(*, config, params, tr):
         selected_tts_server = tts_servers[selected_tts_server_index][0]
         config.ui["tts_server"] = selected_tts_server
 
-        filtered_voices = filter_voices_for_tts_server(selected_tts_server)
+        elevenlabs_api_key_for_voice_list = ""
+        if selected_tts_server == "elevenlabs":
+            elevenlabs_api_key_for_voice_list = st.session_state.get(
+                "elevenlabs_api_key_input",
+                config.elevenlabs.get("api_key", ""),
+            )
+            if elevenlabs_api_key_for_voice_list:
+                config.elevenlabs["api_key"] = elevenlabs_api_key_for_voice_list
+
+        filtered_voices = filter_voices_for_tts_server(
+            selected_tts_server, elevenlabs_api_key_for_voice_list
+        )
         friendly_names = build_friendly_voice_names(
             filtered_voices, selected_tts_server, tr
         )
@@ -254,6 +270,45 @@ def render_audio_panel(*, config, params, tr):
             )
 
             config.app["mimo_api_key"] = mimo_api_key
+
+        if selected_tts_server == "elevenlabs" or (
+            voice_name and voice.is_elevenlabs_voice(voice_name)
+        ):
+            saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
+
+            elevenlabs_api_key = st.text_input(
+                tr("ElevenLabs API Key"),
+                value=saved_elevenlabs_api_key,
+                type="password",
+                key="elevenlabs_api_key_input",
+            )
+
+            elevenlabs_models = [
+                "eleven_multilingual_v2",
+                "eleven_flash_v2_5",
+                "eleven_v3",
+            ]
+            saved_elevenlabs_model = config.elevenlabs.get(
+                "model_id", "eleven_multilingual_v2"
+            )
+            if saved_elevenlabs_model not in elevenlabs_models:
+                saved_elevenlabs_model = "eleven_multilingual_v2"
+
+            elevenlabs_model = st.selectbox(
+                tr("ElevenLabs Model"),
+                options=elevenlabs_models,
+                index=elevenlabs_models.index(saved_elevenlabs_model),
+                key="elevenlabs_model_select",
+            )
+
+            st.info(
+                "ElevenLabs TTS Settings:\n"
+                "- Get your API key at https://elevenlabs.io/app/settings/api-keys\n"
+                "- Mark voices as Favorite in the ElevenLabs voice library to make them appear here"
+            )
+
+            config.elevenlabs["api_key"] = elevenlabs_api_key
+            config.elevenlabs["model_id"] = elevenlabs_model
 
         voice_volume_options = [0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0]
         params.voice_volume = st.selectbox(

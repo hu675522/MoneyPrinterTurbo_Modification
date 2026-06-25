@@ -12,6 +12,7 @@ def get_llm_provider_options(ui_language: str, tr) -> list[tuple[str, str]]:
         ("OpenAI", "openai"),
         (aihubmix_label, "aihubmix"),
         ("AIML API", "aimlapi"),
+        ("EvoLink", "evolink"),
         ("Moonshot", "moonshot"),
         ("Azure", "azure"),
         ("Qwen", "qwen"),
@@ -128,6 +129,11 @@ def get_provider_defaults_and_tips(
             llm_model_name = "openai/gpt-4o-mini"
         if not llm_base_url:
             llm_base_url = "https://api.aimlapi.com/v1"
+    if llm_provider == "evolink":
+        if not llm_model_name:
+            llm_model_name = "gpt-5.5"
+        if not llm_base_url:
+            llm_base_url = "https://direct.evolink.ai/v1"
     if llm_provider == "moonshot" and not llm_model_name:
         llm_model_name = "moonshot-v1-8k"
     if llm_provider == "oneapi" and not llm_model_name:
@@ -193,6 +199,12 @@ def get_provider_defaults_and_tips(
 - **API Key**: Create one at https://aimlapi.com/app/keys
 - **Base Url**: `https://api.aimlapi.com/v1`
 - **Model Name**: For example `openai/gpt-4o-mini`, `openai/gpt-4o`, or `google/gemini-3-flash-preview`.
+""",
+        "evolink": """
+##### EvoLink 配置说明
+- **API Key**: [点击到官网申请](https://evolink.ai/dashboard/keys)
+- **Base Url**: `https://direct.evolink.ai/v1`
+- **Model Name**: 默认 `gpt-5.5`，也可以填写 EvoLink 支持的其它模型 ID。
 """,
         "moonshot": """
 ##### Moonshot \u914d\u7f6e\u8bf4\u660e

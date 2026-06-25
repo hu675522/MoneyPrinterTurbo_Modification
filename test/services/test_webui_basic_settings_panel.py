@@ -40,6 +40,7 @@ class TestWebuiBasicSettingsPanel(unittest.TestCase):
 
         self.assertIn(("AIHubMix (T:Recommended)", "aihubmix"), options)
         self.assertIn("openai", values)
+        self.assertIn("evolink", values)
         self.assertIn("groq", values)
         self.assertIn("litellm", values)
 
@@ -117,3 +118,15 @@ class TestWebuiBasicSettingsPanel(unittest.TestCase):
         self.assertEqual(model_name, "qwen:7b")
         self.assertEqual(base_url, "http://localhost:11434/v1")
         self.assertIn("Ollama", tips)
+
+    def test_evolink_defaults_fill_model_and_base_url(self):
+        model_name, base_url, tips = get_provider_defaults_and_tips(
+            app_config=FakeAppConfig(),
+            llm_provider="evolink",
+            llm_model_name="",
+            llm_base_url="",
+        )
+
+        self.assertEqual(model_name, "gpt-5.5")
+        self.assertEqual(base_url, "https://direct.evolink.ai/v1")
+        self.assertIn("EvoLink", tips)
