@@ -13,6 +13,9 @@ from app.services import state as sm
 from app.utils import file_security, utils
 
 
+LOCAL_MATERIAL_SOURCES = {"local"}
+
+
 def generate_script(task_id, params):
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
@@ -76,6 +79,19 @@ def save_script_data(task_id, video_script, video_terms, params):
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
+
+
+def is_task_canceled(task_id: str) -> bool:
+    task = sm.state.get_task(task_id)
+    return bool(task and task.get("state") == const.TASK_STATE_CANCELED)
+
+
+def stop_if_task_canceled(task_id: str, stage: str) -> bool:
+    if not is_task_canceled(task_id):
+        return False
+
+    logger.info(f"task {task_id} canceled, skip {stage}")
+    return True
 
 
 def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:
@@ -216,8 +232,8 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
-    if params.video_source == "local":
-        logger.info("\n\n## preprocess local materials")
+    if params.video_source in LOCAL_MATERIAL_SOURCES:
+        logger.info(f"\n\n## preprocess {params.video_source} materials")
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
         )
@@ -272,6 +288,9 @@ def generate_final_videos(
 
     _progress = 50
     for i in range(params.video_count):
+        if stop_if_task_canceled(task_id, "remaining video generation"):
+            return None, None
+
         index = i + 1
         combined_video_path = path.join(
             utils.task_dir(task_id), f"combined-{index}.mp4"
@@ -291,6 +310,9 @@ def generate_final_videos(
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
 
+        if stop_if_task_canceled(task_id, f"final video {index}"):
+            return None, None
+
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
@@ -305,6 +327,9 @@ def generate_final_videos(
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
 
+        if stop_if_task_canceled(task_id, "remaining video generation"):
+            return None, None
+
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
 
@@ -314,14 +339,20 @@ def generate_final_videos(
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    if stop_if_task_canceled(task_id, "video script generation"):
+        return
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
+    if stop_if_task_canceled(task_id, "video terms generation"):
+        return
     if not video_script or "Error: " in video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
+    if stop_if_task_canceled(task_id, "script result finalization"):
+        return
 
     if stop_at == "script":
         sm.state.update_task(
@@ -331,13 +362,17 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 2. Generate terms
     video_terms = ""
-    if params.video_source != "local":
+    if params.video_source not in LOCAL_MATERIAL_SOURCES:
         video_terms = generate_terms(task_id, params, video_script)
+        if stop_if_task_canceled(task_id, "script data saving"):
+            return
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             return
 
     save_script_data(task_id, video_script, video_terms, params)
+    if stop_if_task_canceled(task_id, "terms result finalization"):
+        return
 
     if stop_at == "terms":
         sm.state.update_task(
@@ -346,16 +381,22 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"script": video_script, "terms": video_terms}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+    if stop_if_task_canceled(task_id, "audio generation"):
+        return
 
     # 3. Generate audio
     audio_file, audio_duration, sub_maker = generate_audio(
         task_id, params, video_script
     )
+    if stop_if_task_canceled(task_id, "audio result finalization"):
+        return
     if not audio_file:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
+    if stop_if_task_canceled(task_id, "audio stop-at result"):
+        return
 
     if stop_at == "audio":
         sm.state.update_task(
@@ -370,6 +411,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     subtitle_path = generate_subtitle(
         task_id, params, video_script, sub_maker, audio_file
     )
+    if stop_if_task_canceled(task_id, "subtitle result finalization"):
+        return
 
     if stop_at == "subtitle":
         sm.state.update_task(
@@ -381,11 +424,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"subtitle_path": subtitle_path}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+    if stop_if_task_canceled(task_id, "video material retrieval"):
+        return
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
         task_id, params, video_terms, audio_duration
     )
+    if stop_if_task_canceled(task_id, "video material result finalization"):
+        return
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
@@ -400,6 +447,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"materials": downloaded_videos}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
+    if stop_if_task_canceled(task_id, "final video generation"):
+        return
 
     # 仅完整视频生成流程才需要处理视频拼接模式；
     # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
@@ -410,6 +459,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     final_video_paths, combined_video_paths = generate_final_videos(
         task_id, params, downloaded_videos, audio_file, subtitle_path
     )
+    if stop_if_task_canceled(task_id, "final task completion"):
+        return
 
     if not final_video_paths:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
@@ -422,6 +473,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # 7. Cross-post to social platforms (if enabled)
     cross_post_results = []
     if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
+        if stop_if_task_canceled(task_id, "cross-posting"):
+            return
+
         platforms = upload_post.upload_post_service.platforms
         logger.info(f"\n\n## cross-posting videos to {', '.join(platforms)}")
 
@@ -442,6 +496,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             }
 
         for video_path in final_video_paths:
+            if stop_if_task_canceled(task_id, "remaining cross-posting"):
+                return
+
             result = upload_post.cross_post_video(
                 video_path=video_path,
                 title=params.video_subject or "Check out this video! #shorts #viral",
@@ -467,6 +524,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
+    if stop_if_task_canceled(task_id, "task return"):
+        return
     return kwargs
 
 

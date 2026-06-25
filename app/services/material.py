@@ -2,13 +2,15 @@ import os
 import random
 import threading
 from typing import List
-from urllib.parse import urlencode
+from urllib.parse import urlparse, urlencode
 
 import requests
 from loguru import logger
+from moviepy import CompositeVideoClip, ImageClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
+from app.models import const
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 
@@ -241,6 +243,284 @@ def search_videos_coverr(
     return []
 
 
+def _get_bearer_api_headers(api_key: str = "") -> dict:
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "MoneyPrinterTurbo/2.0.0",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _get_douyin_material_api_headers() -> dict:
+    api_key = (config.app.get("douyin_material_api_key") or "").strip()
+    return _get_bearer_api_headers(api_key)
+
+
+def _get_douyin_metadata_api_headers() -> dict:
+    api_key = (config.app.get("douyin_metadata_api_key") or "").strip()
+    return _get_bearer_api_headers(api_key)
+
+
+def _get_douyin_resolver_api_headers() -> dict:
+    api_key = (config.app.get("douyin_resolver_api_key") or "").strip()
+    return _get_bearer_api_headers(api_key)
+
+
+def _get_douyin_response_items(response):
+    if isinstance(response, list):
+        return response
+    if not isinstance(response, dict):
+        return []
+    data = response.get("data")
+    if isinstance(data, dict):
+        return data.get("items") or data.get("materials") or data.get("videos") or []
+    if isinstance(data, list):
+        return data
+    return response.get("items") or response.get("materials") or response.get("videos") or []
+
+
+def _get_douyin_response_single_or_items(response):
+    items = _get_douyin_response_items(response)
+    if items:
+        return items
+    if isinstance(response, dict):
+        data = response.get("data")
+        if isinstance(data, dict):
+            return [data]
+        return [response]
+    return []
+
+
+def _material_url_from_item(item: dict) -> str:
+    for key in (
+        "download_url",
+        "video_url",
+        "image_url",
+        "media_url",
+        "url",
+        "link",
+        "play_url",
+    ):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _media_type_from_item(item: dict, media_url: str) -> str:
+    explicit_type = str(
+        item.get("media_type") or item.get("type") or item.get("kind") or ""
+    ).lower()
+    if explicit_type in {"image", "photo", "picture"}:
+        return "image"
+    if explicit_type in {"video", "mp4"}:
+        return "video"
+
+    extension = utils.parse_extension(urlparse(media_url).path)
+    if extension in const.FILE_TYPE_IMAGES:
+        return "image"
+    return "video"
+
+
+def _build_material_info_from_item(item: dict, minimum_duration: int) -> MaterialInfo | None:
+    media_url = _material_url_from_item(item)
+    if not media_url:
+        return None
+
+    media_type = _media_type_from_item(item, media_url)
+    try:
+        duration = int(float(item.get("duration") or minimum_duration))
+    except (TypeError, ValueError):
+        duration = minimum_duration
+
+    if media_type == "video" and duration < minimum_duration:
+        return None
+
+    material_item = MaterialInfo()
+    material_item.provider = "douyin"
+    material_item.url = media_url
+    material_item.duration = max(
+        duration, minimum_duration if media_type == "image" else 0
+    )
+    material_item.media_type = media_type
+    return material_item
+
+
+def _search_videos_douyin_direct(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> List[MaterialInfo]:
+    api_url = (config.app.get("douyin_material_api_url") or "").strip()
+    if not api_url:
+        logger.error(
+            "douyin_material_api_url is not configured. "
+            "Configure an official or authorized Douyin material service first."
+        )
+        return []
+
+    aspect = VideoAspect(video_aspect)
+    params = {
+        "query": search_term,
+        "minimum_duration": minimum_duration,
+        "aspect": aspect.value,
+        "sort": config.app.get("douyin_material_sort", "hot"),
+        "limit": int(config.app.get("douyin_material_limit", 20) or 20),
+    }
+    logger.info(f"searching douyin materials: {api_url}, params: {params}")
+
+    r = requests.get(
+        api_url,
+        params=params,
+        headers=_get_douyin_material_api_headers(),
+        proxies=config.proxy,
+        verify=_get_tls_verify(),
+        timeout=(30, 60),
+    )
+    response = r.json()
+    video_items: List[MaterialInfo] = []
+
+    for raw_item in _get_douyin_response_items(response):
+        if not isinstance(raw_item, dict):
+            continue
+        material_item = _build_material_info_from_item(raw_item, minimum_duration)
+        if material_item:
+            video_items.append(material_item)
+
+    return video_items
+
+
+def _metadata_video_url_from_item(item: dict) -> str:
+    for key in ("video_url", "share_url", "aweme_url", "url", "link"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _resolve_douyin_metadata_item(item: dict, minimum_duration: int) -> List[MaterialInfo]:
+    resolver_url = (config.app.get("douyin_resolver_api_url") or "").strip()
+    if not resolver_url:
+        logger.error(
+            "douyin_resolver_api_url is not configured. "
+            "Configure an authorized resolver service before using metadata mode."
+        )
+        return []
+
+    payload = {
+        "aweme_id": item.get("aweme_id") or item.get("id") or "",
+        "video_url": _metadata_video_url_from_item(item),
+        "source": "douyin",
+    }
+    if not payload["aweme_id"] and not payload["video_url"]:
+        return []
+
+    r = requests.post(
+        resolver_url,
+        json=payload,
+        headers=_get_douyin_resolver_api_headers(),
+        proxies=config.proxy,
+        verify=_get_tls_verify(),
+        timeout=(30, 90),
+    )
+    response = r.json()
+
+    resolved_items: List[MaterialInfo] = []
+    for raw_item in _get_douyin_response_single_or_items(response):
+        if not isinstance(raw_item, dict):
+            continue
+        material_item = _build_material_info_from_item(raw_item, minimum_duration)
+        if material_item:
+            resolved_items.append(material_item)
+    return resolved_items
+
+
+def _search_videos_douyin_metadata(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> List[MaterialInfo]:
+    metadata_url = (config.app.get("douyin_metadata_api_url") or "").strip()
+    if not metadata_url:
+        logger.error(
+            "douyin_metadata_api_url is not configured. "
+            "Configure a third-party data API before using metadata mode."
+        )
+        return []
+
+    resolver_url = (config.app.get("douyin_resolver_api_url") or "").strip()
+    if not resolver_url:
+        logger.error(
+            "douyin_resolver_api_url is not configured. "
+            "Configure an authorized resolver service before using metadata mode."
+        )
+        return []
+
+    aspect = VideoAspect(video_aspect)
+    params = {
+        "query": search_term,
+        "minimum_duration": minimum_duration,
+        "aspect": aspect.value,
+        "sort": config.app.get("douyin_material_sort", "hot"),
+        "limit": int(config.app.get("douyin_material_limit", 20) or 20),
+    }
+    logger.info(f"searching douyin metadata: {metadata_url}, params: {params}")
+
+    r = requests.get(
+        metadata_url,
+        params=params,
+        headers=_get_douyin_metadata_api_headers(),
+        proxies=config.proxy,
+        verify=_get_tls_verify(),
+        timeout=(30, 60),
+    )
+    response = r.json()
+    video_items: List[MaterialInfo] = []
+
+    for raw_item in _get_douyin_response_items(response):
+        if not isinstance(raw_item, dict):
+            continue
+        video_items.extend(_resolve_douyin_metadata_item(raw_item, minimum_duration))
+
+    return video_items
+
+
+def search_videos_douyin(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """
+    Search an authorized Douyin material service.
+
+    This project intentionally does not bypass Douyin anti-scraping controls. Set
+    config.app.douyin_material_source_mode to "direct" for an official/authorized
+    material service, or "metadata" to use a third-party data API plus an
+    authorized resolver service.
+    """
+    try:
+        source_mode = str(
+            config.app.get("douyin_material_source_mode", "direct") or "direct"
+        ).lower()
+        if source_mode == "metadata":
+            return _search_videos_douyin_metadata(
+                search_term=search_term,
+                minimum_duration=minimum_duration,
+                video_aspect=video_aspect,
+            )
+        return _search_videos_douyin_direct(
+            search_term=search_term,
+            minimum_duration=minimum_duration,
+            video_aspect=video_aspect,
+        )
+    except Exception as e:
+        logger.error(f"search douyin materials failed: {str(e)}")
+
+    return []
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -301,6 +581,146 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
+def _get_url_file_extension(media_url: str, fallback: str) -> str:
+    extension = utils.parse_extension(urlparse(media_url).path)
+    if extension:
+        return extension.lower()
+    return fallback
+
+
+def save_image_as_video(image_url: str, save_dir: str = "", clip_duration: int = 5) -> str:
+    if not save_dir:
+        save_dir = utils.storage_dir("cache_videos")
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    extension = _get_url_file_extension(image_url, "jpg")
+    if extension not in const.FILE_TYPE_IMAGES:
+        extension = "jpg"
+
+    url_without_query = image_url.split("?")[0]
+    url_hash = utils.md5(url_without_query)
+    image_path = f"{save_dir}/img-{url_hash}.{extension}"
+    video_path = f"{image_path}.mp4"
+
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        logger.info(f"image video already exists: {video_path}")
+        return video_path
+
+    if not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        with open(image_path, "wb") as f:
+            f.write(
+                requests.get(
+                    image_url,
+                    headers=headers,
+                    proxies=config.proxy,
+                    verify=_get_tls_verify(),
+                    timeout=(60, 240),
+                ).content
+            )
+
+    clip = None
+    final_clip = None
+    try:
+        clip = (
+            ImageClip(image_path)
+            .with_duration(max(1, clip_duration))
+            .with_position("center")
+        )
+        zoom_clip = clip.resized(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+        final_clip = CompositeVideoClip([zoom_clip])
+        final_clip.write_videofile(video_path, fps=30, logger=None)
+        return video_path if os.path.exists(video_path) and os.path.getsize(video_path) > 0 else ""
+    except Exception as e:
+        logger.warning(f"failed to convert image material to video: {image_url}, error: {str(e)}")
+        return ""
+    finally:
+        for opened_clip in (clip, final_clip):
+            if opened_clip is not None:
+                try:
+                    opened_clip.close()
+                except Exception:
+                    pass
+
+
+def _save_enhanced_material_response(response, source_path: str) -> str:
+    content_type = response.headers.get("Content-Type", "")
+    enhanced_path = f"{os.path.splitext(source_path)[0]}.enhanced.mp4"
+
+    if content_type.startswith("application/json"):
+        data = response.json()
+        enhanced_url = ""
+        if isinstance(data, dict):
+            enhanced_url = (
+                data.get("download_url")
+                or data.get("video_url")
+                or data.get("media_url")
+                or data.get("url")
+                or ""
+            )
+        if enhanced_url:
+            return save_video(enhanced_url, save_dir=os.path.dirname(source_path))
+        return ""
+
+    with open(enhanced_path, "wb") as f:
+        f.write(response.content)
+
+    if os.path.exists(enhanced_path) and os.path.getsize(enhanced_path) > 0:
+        return enhanced_path
+    return ""
+
+
+def _enhance_douyin_material_if_configured(item: MaterialInfo, local_path: str) -> str:
+    enhance_url = (config.app.get("douyin_material_enhance_api_url") or "").strip()
+    if not enhance_url or item.provider != "douyin" or not local_path:
+        return local_path
+
+    api_key = (config.app.get("douyin_material_enhance_api_key") or "").strip()
+    headers = _get_bearer_api_headers(api_key)
+    headers.pop("Accept", None)
+    try:
+        logger.info(f"enhancing douyin material with configured service: {local_path}")
+        with open(local_path, "rb") as material_file:
+            response = requests.post(
+                enhance_url,
+                files={"file": (os.path.basename(local_path), material_file)},
+                data={
+                    "provider": item.provider,
+                    "media_type": item.media_type,
+                },
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(60, 600),
+            )
+        enhanced_path = _save_enhanced_material_response(response, local_path)
+        if enhanced_path:
+            logger.info(f"douyin material enhanced: {enhanced_path}")
+            return enhanced_path
+    except Exception as e:
+        logger.warning(
+            f"douyin material enhancement failed, using original material: {str(e)}"
+        )
+    return local_path
+
+
+def save_material(item: MaterialInfo, save_dir: str = "", max_clip_duration: int = 5) -> str:
+    media_type = (getattr(item, "media_type", "") or "").lower()
+    if media_type == "image":
+        saved_path = save_image_as_video(
+            image_url=item.url,
+            save_dir=save_dir,
+            clip_duration=max_clip_duration,
+        )
+    else:
+        saved_path = save_video(video_url=item.url, save_dir=save_dir)
+    return _enhance_douyin_material_if_configured(item, saved_path)
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -316,6 +736,8 @@ def download_videos(
         search_videos = search_videos_pixabay
     elif source == "coverr":
         search_videos = search_videos_coverr
+    elif source == "douyin":
+        search_videos = search_videos_douyin
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -364,8 +786,10 @@ def download_videos(
     for item in valid_video_items:
         try:
             logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
+            saved_video_path = save_material(
+                item=item,
+                save_dir=material_directory,
+                max_clip_duration=max_clip_duration,
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
@@ -445,8 +869,10 @@ def _download_videos_by_script_order(
                 logger.info(
                     f"downloading ordered video for '{search_term}': {item.url}"
                 )
-                saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
+                saved_video_path = save_material(
+                    item=item,
+                    save_dir=material_directory,
+                    max_clip_duration=max_clip_duration,
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")

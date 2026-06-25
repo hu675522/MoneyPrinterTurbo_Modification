@@ -70,6 +70,21 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.video_source, "coverr")
 
+    def test_douyin_video_source_accepted_without_local_materials(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "douyin",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertEqual(params.video_source, "douyin")
+        self.assertIsNone(params.video_materials)
+
     def test_build_video_params_with_script_video_and_audio_options(self):
         args = cli.parse_args(
             [

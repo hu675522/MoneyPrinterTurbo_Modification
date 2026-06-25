@@ -426,5 +426,189 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
 
 
+class TestDouyinProvider(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+
+    def test_search_douyin_requires_authorized_api_url(self):
+        config.app["douyin_material_source_mode"] = "direct"
+        config.app.pop("douyin_material_api_url", None)
+
+        with patch("app.services.material.requests.get") as get:
+            results = material.search_videos_douyin("coffee", minimum_duration=3)
+
+        self.assertEqual(results, [])
+        get.assert_not_called()
+
+    def test_search_douyin_calls_configured_material_api(self):
+        config.app["douyin_material_source_mode"] = "direct"
+        config.app["douyin_material_api_url"] = "https://materials.example/search"
+        config.app["douyin_material_api_key"] = "douyin-key"
+        config.app["douyin_material_sort"] = "latest"
+        config.app["douyin_material_limit"] = 5
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "items": [
+                    {
+                        "url": "https://cdn.example/video.mp4",
+                        "duration": 8,
+                        "media_type": "video",
+                    },
+                    {
+                        "image_url": "https://cdn.example/image.jpg",
+                        "media_type": "image",
+                    },
+                    {
+                        "url": "https://cdn.example/too-short.mp4",
+                        "duration": 1,
+                        "media_type": "video",
+                    },
+                ]
+            }
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response) as get:
+            results = material.search_videos_douyin("coffee", minimum_duration=3)
+
+        self.assertEqual([item.url for item in results], [
+            "https://cdn.example/video.mp4",
+            "https://cdn.example/image.jpg",
+        ])
+        self.assertEqual([item.media_type for item in results], ["video", "image"])
+        self.assertEqual(results[0].provider, "douyin")
+        self.assertEqual(results[1].duration, 3)
+        self.assertEqual(get.call_args.args[0], "https://materials.example/search")
+        self.assertEqual(get.call_args.kwargs["params"]["query"], "coffee")
+        self.assertEqual(get.call_args.kwargs["params"]["sort"], "latest")
+        self.assertEqual(get.call_args.kwargs["params"]["limit"], 5)
+        self.assertEqual(
+            get.call_args.kwargs["headers"]["Authorization"], "Bearer douyin-key"
+        )
+        self.assertTrue(get.call_args.kwargs["verify"])
+
+    def test_search_douyin_metadata_mode_resolves_aweme_items(self):
+        config.app["douyin_material_source_mode"] = "metadata"
+        config.app["douyin_metadata_api_url"] = "https://data.example/search"
+        config.app["douyin_metadata_api_key"] = "metadata-key"
+        config.app["douyin_resolver_api_url"] = "https://resolver.example/resolve"
+        config.app["douyin_resolver_api_key"] = "resolver-key"
+        config.app["douyin_material_sort"] = "most_liked"
+        config.app["douyin_material_limit"] = 2
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+        metadata_response = SimpleNamespace(
+            json=lambda: {
+                "items": [
+                    {
+                        "aweme_id": "123",
+                        "video_url": "https://www.douyin.com/video/123",
+                        "like_count": 999,
+                    }
+                ]
+            }
+        )
+        resolver_response = SimpleNamespace(
+            json=lambda: {
+                "data": {
+                    "url": "https://cdn.example/resolved.mp4",
+                    "duration": 9,
+                    "media_type": "video",
+                }
+            }
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=metadata_response
+        ) as get, patch(
+            "app.services.material.requests.post", return_value=resolver_response
+        ) as post:
+            results = material.search_videos_douyin("coffee", minimum_duration=3)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].url, "https://cdn.example/resolved.mp4")
+        self.assertEqual(results[0].media_type, "video")
+        self.assertEqual(get.call_args.args[0], "https://data.example/search")
+        self.assertEqual(get.call_args.kwargs["params"]["sort"], "most_liked")
+        self.assertEqual(
+            get.call_args.kwargs["headers"]["Authorization"], "Bearer metadata-key"
+        )
+        self.assertEqual(post.call_args.args[0], "https://resolver.example/resolve")
+        self.assertEqual(post.call_args.kwargs["json"]["aweme_id"], "123")
+        self.assertEqual(
+            post.call_args.kwargs["headers"]["Authorization"], "Bearer resolver-key"
+        )
+
+    def test_download_videos_dispatches_to_douyin_provider(self):
+        fake_item = material.MaterialInfo(
+            provider="douyin",
+            url="https://cdn.example/video.mp4",
+            duration=8,
+            media_type="video",
+        )
+
+        with (
+            patch.object(material, "search_videos_douyin", return_value=[fake_item]) as search,
+            patch.object(material, "save_material", return_value="/tmp/douyin.mp4") as save,
+        ):
+            result = material.download_videos(
+                task_id="douyin-download",
+                search_terms=["coffee"],
+                source="douyin",
+                audio_duration=5,
+                max_clip_duration=3,
+            )
+
+        search.assert_called_once()
+        self.assertEqual(save.call_args.kwargs["item"], fake_item)
+        self.assertEqual(save.call_args.kwargs["max_clip_duration"], 3)
+        self.assertEqual(result, ["/tmp/douyin.mp4"])
+
+    def test_save_material_calls_optional_douyin_enhance_service(self):
+        config.app["douyin_material_enhance_api_url"] = "https://enhance.example/run"
+        config.app["douyin_material_enhance_api_key"] = "enhance-key"
+        config.proxy.clear()
+
+        item = material.MaterialInfo(
+            provider="douyin",
+            url="https://cdn.example/video.mp4",
+            duration=8,
+            media_type="video",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = os.path.join(temp_dir, "source.mp4")
+            with open(source_path, "wb") as source:
+                source.write(b"source-video")
+
+            fake_response = SimpleNamespace(
+                headers={"Content-Type": "video/mp4"},
+                content=b"enhanced-video",
+            )
+
+            with patch.object(
+                material, "save_video", return_value=source_path
+            ), patch("app.services.material.requests.post", return_value=fake_response) as post:
+                result = material.save_material(item, save_dir=temp_dir)
+
+            self.assertTrue(result.endswith(".enhanced.mp4"))
+            self.assertTrue(os.path.exists(result))
+            self.assertEqual(post.call_args.args[0], "https://enhance.example/run")
+            self.assertEqual(
+                post.call_args.kwargs["headers"]["Authorization"],
+                "Bearer enhance-key",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

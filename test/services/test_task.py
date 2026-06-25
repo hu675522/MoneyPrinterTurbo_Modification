@@ -75,6 +75,71 @@ class TestTaskService(unittest.TestCase):
             match_script_order=True,
         )
     
+    def test_start_stops_after_script_when_task_is_canceled(self):
+        task_id = "test-task-cancel-after-script"
+        params = VideoParams(video_subject="coffee", video_source="pexels")
+
+        def generate_script(task_id, params):
+            tm.sm.state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_CANCELED,
+                progress=100,
+                canceled=True,
+            )
+            return "script"
+
+        try:
+            with (
+                patch.object(tm, "generate_script", side_effect=generate_script),
+                patch.object(tm, "generate_terms") as generate_terms,
+            ):
+                result = tm.start(task_id=task_id, params=params)
+
+            task = tm.sm.state.get_task(task_id)
+            self.assertIsNone(result)
+            self.assertEqual(task["state"], tm.const.TASK_STATE_CANCELED)
+            generate_terms.assert_not_called()
+        finally:
+            tm.sm.state.delete_task(task_id)
+
+    def test_generate_final_videos_stops_when_task_is_canceled_after_combine(self):
+        task_id = "test-task-cancel-during-video"
+        params = VideoParams(video_subject="coffee", video_count=1)
+        tm.sm.state.update_task(
+            task_id,
+            state=tm.const.TASK_STATE_PROCESSING,
+            progress=50,
+        )
+
+        def combine_videos(**kwargs):
+            tm.sm.state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_CANCELED,
+                progress=100,
+                canceled=True,
+            )
+
+        try:
+            with (
+                patch.object(tm.video, "combine_videos", side_effect=combine_videos),
+                patch.object(tm.video, "generate_video") as generate_video,
+            ):
+                final_video_paths, combined_video_paths = tm.generate_final_videos(
+                    task_id=task_id,
+                    params=params,
+                    downloaded_videos=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    subtitle_path="subtitle.srt",
+                )
+
+            task = tm.sm.state.get_task(task_id)
+            self.assertIsNone(final_video_paths)
+            self.assertIsNone(combined_video_paths)
+            self.assertEqual(task["state"], tm.const.TASK_STATE_CANCELED)
+            generate_video.assert_not_called()
+        finally:
+            tm.sm.state.delete_task(task_id)
+
     def test_generate_audio_uses_custom_file_inside_task_directory(self):
         task_id = "test-custom-audio-safe"
         task_dir = utils.task_dir(task_id)
@@ -162,6 +227,61 @@ class TestTaskService(unittest.TestCase):
         self.assertIsNone(result_sub_maker)
         tts.assert_not_called()
         update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
+
+    def test_douyin_source_downloads_online_materials(self):
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="douyin",
+            video_count=2,
+        )
+
+        with (
+            patch.object(tm.video, "preprocess_video") as preprocess,
+            patch.object(
+                tm.material,
+                "download_videos",
+                return_value=["/tmp/douyin-clip.mp4"],
+            ) as download_videos,
+        ):
+            result = tm.get_video_materials(
+                task_id="douyin-materials",
+                params=params,
+                video_terms=["coffee"],
+                audio_duration=5,
+            )
+
+        self.assertEqual(result, ["/tmp/douyin-clip.mp4"])
+        preprocess.assert_not_called()
+        download_videos.assert_called_once()
+        self.assertEqual(download_videos.call_args.kwargs["source"], "douyin")
+        self.assertEqual(download_videos.call_args.kwargs["audio_duration"], 10)
+
+    def test_douyin_source_generates_terms_for_online_search(self):
+        params = VideoParams(
+            video_subject="coffee",
+            video_script="script",
+            video_source="douyin",
+        )
+
+        with (
+            patch.object(tm, "generate_script", return_value="script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]) as generate_terms,
+            patch.object(tm, "save_script_data"),
+            patch.object(tm, "generate_audio", return_value=("audio.mp3", 3, None)),
+            patch.object(tm, "generate_subtitle", return_value=""),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(tm, "generate_final_videos", return_value=(["final.mp4"], ["combined.mp4"])),
+            patch.object(tm.upload_post.upload_post_service, "is_configured", return_value=False),
+        ):
+            result = tm.start("douyin-skip-terms", params)
+
+        try:
+            self.assertIsNotNone(result)
+            generate_terms.assert_called_once_with(
+                "douyin-skip-terms", params, "script"
+            )
+        finally:
+            tm.sm.state.delete_task("douyin-skip-terms")
 
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,

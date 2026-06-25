@@ -48,6 +48,43 @@ pixabay_api_keys = []
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 coverr_api_keys = []
 
+# Douyin material source.
+# MoneyPrinterTurbo does not bypass Douyin anti-scraping controls. Use only
+# official, licensed, or otherwise authorized services.
+#
+# direct:
+#   Calls douyin_material_api_url and expects downloadable material URLs.
+# metadata:
+#   Calls douyin_metadata_api_url to search aweme_id/video_url metadata, then
+#   calls douyin_resolver_api_url to resolve each item into downloadable material URLs.
+douyin_material_source_mode = "direct" # "direct" or "metadata"
+
+# Direct material API contract:
+#   GET douyin_material_api_url?query=...&minimum_duration=...&aspect=...&sort=...&limit=...
+#   {"items":[{"url":"https://example.com/a.mp4","duration":8,"media_type":"video"}]}
+#   {"data":{"items":[{"image_url":"https://example.com/a.jpg","media_type":"image"}]}}
+douyin_material_api_url = ""
+douyin_material_api_key = ""
+
+# Metadata API contract:
+#   GET douyin_metadata_api_url?query=...&minimum_duration=...&aspect=...&sort=...&limit=...
+#   {"items":[{"aweme_id":"123","video_url":"https://www.douyin.com/video/...","like_count":1000}]}
+# Resolver API contract:
+#   POST douyin_resolver_api_url with JSON {"aweme_id":"123","video_url":"...","source":"douyin"}
+#   Response uses the same downloadable material format as the direct material API.
+douyin_metadata_api_url = ""
+douyin_metadata_api_key = ""
+douyin_resolver_api_url = ""
+douyin_resolver_api_key = ""
+
+# Optional AI enhancement/redraw hook. The downloaded local file is uploaded as
+# multipart field "file"; binary video content or JSON {"url":"..."} is accepted.
+douyin_material_enhance_api_url = ""
+douyin_material_enhance_api_key = ""
+
+douyin_material_sort = "hot" # "hot", "most_liked", or "latest"
+douyin_material_limit = 20
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)

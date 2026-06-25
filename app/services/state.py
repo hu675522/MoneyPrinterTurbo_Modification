@@ -48,6 +48,14 @@ class MemoryState(BaseState):
             progress = 100
 
         with self._lock:
+            current_task = self._tasks.get(task_id)
+            if (
+                current_task
+                and current_task.get("state") == const.TASK_STATE_CANCELED
+                and state != const.TASK_STATE_CANCELED
+            ):
+                return
+
             self._tasks[task_id] = {
                 "task_id": task_id,
                 "state": state,
@@ -124,6 +132,14 @@ class RedisState(BaseState):
         progress = int(progress)
         if progress > 100:
             progress = 100
+
+        current_task = self.get_task(task_id)
+        if (
+            current_task
+            and current_task.get("state") == const.TASK_STATE_CANCELED
+            and state != const.TASK_STATE_CANCELED
+        ):
+            return
 
         fields = {
             "task_id": task_id,

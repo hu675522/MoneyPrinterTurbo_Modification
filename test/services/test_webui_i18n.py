@@ -6,6 +6,7 @@ import unittest
 
 ROOT_DIR = Path(__file__).parent.parent.parent
 WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
+WEBUI_DIR = ROOT_DIR / "webui"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 
 
@@ -30,15 +31,19 @@ def _load_translation(locale):
     return data.get("Translation", {})
 
 
+def _collect_static_tr_keys():
+    visitor = _TrKeyVisitor()
+    for path in WEBUI_DIR.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        visitor.visit(tree)
+    return visitor.keys
+
+
 class TestWebuiI18n(unittest.TestCase):
     def test_english_locale_covers_static_webui_labels(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        visitor = _TrKeyVisitor()
-        visitor.visit(tree)
-
         en_keys = set(_load_translation("en"))
 
-        self.assertEqual(sorted(visitor.keys - en_keys), [])
+        self.assertEqual(sorted(_collect_static_tr_keys() - en_keys), [])
 
     def test_russian_locale_covers_english_locale(self):
         en_keys = set(_load_translation("en"))
@@ -47,26 +52,26 @@ class TestWebuiI18n(unittest.TestCase):
         self.assertEqual(sorted(en_keys - ru_keys), [])
 
     def test_russian_locale_covers_static_webui_labels(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        visitor = _TrKeyVisitor()
-        visitor.visit(tree)
-
         ru_keys = set(_load_translation("ru"))
 
-        self.assertEqual(sorted(visitor.keys - ru_keys), [])
+        self.assertEqual(sorted(_collect_static_tr_keys() - ru_keys), [])
 
     def test_script_language_options_include_russian(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
         support_locales = None
 
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if any(
-                isinstance(target, ast.Name) and target.id == "support_locales"
-                for target in node.targets
-            ):
-                support_locales = ast.literal_eval(node.value)
+        for path in WEBUI_DIR.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in tree.body:
+                if not isinstance(node, ast.Assign):
+                    continue
+                if any(
+                    isinstance(target, ast.Name)
+                    and target.id in {"support_locales", "SUPPORT_LOCALES"}
+                    for target in node.targets
+                ):
+                    support_locales = ast.literal_eval(node.value)
+                    break
+            if support_locales is not None:
                 break
 
         self.assertIsNotNone(support_locales)

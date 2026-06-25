@@ -59,6 +59,8 @@ _TRANSITION_MODE_VALUES = {
     "slide-out": "SlideOut",
 }
 
+LOCAL_MATERIAL_SOURCES = {"local"}
+
 
 def _transition_mode(value: str) -> str | None:
     normalized = value.strip().lower()
@@ -110,7 +112,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "local"],
+        choices=["pexels", "pixabay", "coverr", "local", "douyin"],
         help="video material source",
     )
     parser.add_argument(
@@ -241,12 +243,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--task-id", default="", help="custom task id")
     args = parser.parse_args(argv)
 
-    if args.video_source == "local" and not (args.video_materials or "").strip():
+    if args.video_source in LOCAL_MATERIAL_SOURCES and not (args.video_materials or "").strip():
         parser.error("--video-materials is required when --video-source is local")
 
-    if args.video_source == "local" and args.stop_at == "terms":
+    if args.video_source in LOCAL_MATERIAL_SOURCES and args.stop_at == "terms":
         parser.error(
-            "--stop-at terms has no effect with --video-source local "
+            "--stop-at terms has no effect with local material sources "
             "(search terms are not generated for local sources)"
         )
 

@@ -19,7 +19,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.v1 import video as video_controller
 from app.models import const
-from app.models.schema import MaterialInfo
+from app.models.schema import MaterialInfo, VideoParams
 from app.services import state as sm
 from app.services import video as vd
 from app.utils import utils
@@ -67,6 +67,140 @@ class TestSecurityControls(unittest.TestCase):
             sm.state.delete_task(task_id)
             shutil.rmtree(task_dir, ignore_errors=True)
 
+    def test_tasks_page_response_matches_task_query_output_format(self):
+        task_id = "security-task-list-url"
+        task_dir = utils.task_dir(task_id)
+        video_path = os.path.join(task_dir, "final-1.mp4")
+        Path(video_path).write_bytes(b"fake-video")
+        config.app["endpoint"] = ""
+
+        try:
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=[video_path],
+                combined_videos=[video_path],
+            )
+
+            response = video_controller.get_all_tasks(
+                _FakeRequest(),
+                page=1,
+                page_size=100000,
+                newest_first=True,
+            )
+            tasks = response["data"]["tasks"]
+            task = next(task for task in tasks if task["task_id"] == task_id)
+
+            self.assertEqual(response["data"]["page"], 1)
+            self.assertEqual(response["data"]["page_size"], 100000)
+            self.assertGreaterEqual(response["data"]["total"], 1)
+            self.assertEqual(task["videos"], [f"/tasks/{task_id}/final-1.mp4"])
+            self.assertEqual(
+                task["combined_videos"],
+                [f"/tasks/{task_id}/final-1.mp4"],
+            )
+            self.assertEqual(sm.state.get_task(task_id)["videos"], [video_path])
+        finally:
+            sm.state.delete_task(task_id)
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+    def test_tasks_page_can_filter_state_and_return_newest_first(self):
+        task_ids = [
+            "security-task-filter-old",
+            "security-task-filter-complete",
+            "security-task-filter-new",
+        ]
+        try:
+            sm.state.update_task(
+                task_ids[0],
+                state=const.TASK_STATE_PROCESSING,
+                progress=10,
+            )
+            sm.state.update_task(
+                task_ids[1],
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+            sm.state.update_task(
+                task_ids[2],
+                state=const.TASK_STATE_PROCESSING,
+                progress=20,
+            )
+
+            response = video_controller.get_tasks_page(
+                page=1,
+                page_size=10,
+                request_id="test-request",
+                include_output_urls=False,
+                state_filter=const.TASK_STATE_PROCESSING,
+                newest_first=True,
+            )
+
+            self.assertEqual(response["total"], 2)
+            self.assertEqual(
+                [task["task_id"] for task in response["tasks"]],
+                [task_ids[2], task_ids[0]],
+            )
+        finally:
+            for task_id in task_ids:
+                sm.state.delete_task(task_id)
+
+    def test_tasks_page_can_search_by_task_id_or_subject(self):
+        task_ids = [
+            "security-task-search-topic",
+            "security-task-search-id-needle",
+            "security-task-search-other",
+        ]
+        try:
+            sm.state.update_task(
+                task_ids[0],
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+                params={"video_subject": "rare coffee topic"},
+            )
+            sm.state.update_task(
+                task_ids[1],
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+                params={"video_subject": "plain subject"},
+            )
+            sm.state.update_task(
+                task_ids[2],
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+                params={"video_subject": "other subject"},
+            )
+
+            topic_response = video_controller.get_tasks_page(
+                page=1,
+                page_size=10,
+                request_id="test-request",
+                include_output_urls=False,
+                search_query="rare coffee",
+            )
+            id_response = video_controller.get_tasks_page(
+                page=1,
+                page_size=10,
+                request_id="test-request",
+                include_output_urls=False,
+                search_query="id-needle",
+            )
+
+            self.assertEqual(
+                [task["task_id"] for task in topic_response["tasks"]],
+                [task_ids[0]],
+            )
+            self.assertEqual(topic_response["total"], 1)
+            self.assertEqual(
+                [task["task_id"] for task in id_response["tasks"]],
+                [task_ids[1]],
+            )
+            self.assertEqual(id_response["total"], 1)
+        finally:
+            for task_id in task_ids:
+                sm.state.delete_task(task_id)
+
     def test_in_memory_task_manager_rejects_when_queue_is_full(self):
         """
         并发数用尽后，等待队列必须有硬上限。这里用 max_concurrent_tasks=0
@@ -78,6 +212,121 @@ class TestSecurityControls(unittest.TestCase):
 
         with self.assertRaises(TaskQueueFullError):
             manager.add_task(lambda: None)
+
+    def test_submit_task_uses_given_task_id_and_task_function(self):
+        calls = []
+
+        class FakeTaskManager:
+            def add_task(self, func, *args, **kwargs):
+                calls.append((func, args, kwargs))
+
+        def fake_task_func(task_id, params, stop_at):
+            return None
+
+        task_id = "api-shared-submit-task"
+        with patch.object(video_controller, "task_manager", FakeTaskManager()):
+            task = video_controller.submit_task(
+                body=VideoParams(video_subject="coffee"),
+                stop_at="video",
+                request_id="webui",
+                task_id=task_id,
+                task_func=fake_task_func,
+            )
+
+        self.assertEqual(task["task_id"], task_id)
+        self.assertEqual(task["request_id"], "webui")
+        self.assertEqual(calls[0][0], fake_task_func)
+        self.assertEqual(calls[0][2]["task_id"], task_id)
+        self.assertEqual(calls[0][2]["stop_at"], "video")
+
+        sm.state.delete_task(task_id)
+
+    def test_submit_task_deletes_state_when_queue_is_full(self):
+        class FullTaskManager:
+            def add_task(self, func, *args, **kwargs):
+                raise TaskQueueFullError("full")
+
+        task_id = "api-shared-submit-full"
+        with patch.object(video_controller, "task_manager", FullTaskManager()):
+            with self.assertRaises(TaskQueueFullError):
+                video_controller.submit_task(
+                    body=VideoParams(video_subject="coffee"),
+                    stop_at="video",
+                    request_id="webui",
+                    task_id=task_id,
+                )
+
+        self.assertIsNone(sm.state.get_task(task_id))
+
+    def test_delete_task_removes_state_and_task_directory(self):
+        task_id = "api-shared-delete-task"
+        task_dir = utils.task_dir(task_id)
+        output_file = os.path.join(task_dir, "final.mp4")
+        Path(output_file).write_bytes(b"fake")
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=[output_file],
+        )
+
+        task = video_controller.delete_task(task_id)
+
+        self.assertEqual(task["task_id"], task_id)
+        self.assertIsNone(sm.state.get_task(task_id))
+        self.assertFalse(os.path.exists(task_dir))
+
+    def test_delete_task_returns_none_for_missing_task(self):
+        self.assertIsNone(video_controller.delete_task("missing-delete-task"))
+
+    def test_cancel_task_marks_running_task_canceled(self):
+        task_id = "api-shared-cancel-task"
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_PROCESSING,
+            progress=40,
+            params={"video_subject": "coffee"},
+        )
+
+        try:
+            task = video_controller.cancel_task(task_id)
+
+            self.assertEqual(task["task_id"], task_id)
+            self.assertEqual(task["state"], const.TASK_STATE_CANCELED)
+            self.assertEqual(task["progress"], 100)
+            self.assertTrue(task["canceled"])
+            self.assertEqual(task["params"], {"video_subject": "coffee"})
+
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=["late-final.mp4"],
+            )
+
+            task = sm.state.get_task(task_id)
+            self.assertEqual(task["state"], const.TASK_STATE_CANCELED)
+            self.assertNotIn("videos", task)
+        finally:
+            sm.state.delete_task(task_id)
+
+    def test_cancel_task_leaves_finished_task_unchanged(self):
+        task_id = "api-shared-cancel-complete-task"
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+        )
+
+        try:
+            task = video_controller.cancel_task(task_id)
+
+            self.assertEqual(task["state"], const.TASK_STATE_COMPLETE)
+            self.assertEqual(task["videos"], ["final.mp4"])
+            self.assertNotIn("canceled", task)
+        finally:
+            sm.state.delete_task(task_id)
 
 class TestVideoService(unittest.TestCase):
     def setUp(self):

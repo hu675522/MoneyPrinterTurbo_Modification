@@ -78,6 +78,34 @@ class TestMemoryState(unittest.TestCase):
         self.assertEqual(total, thread_count * tasks_per_thread)
         self.assertEqual(len(tasks), total)
 
+    def test_canceled_memory_task_ignores_later_progress_updates(self):
+        state = MemoryState()
+        state.update_task(
+            "task-canceled",
+            state=const.TASK_STATE_PROCESSING,
+            progress=25,
+            params={"video_subject": "coffee"},
+        )
+        state.update_task(
+            "task-canceled",
+            state=const.TASK_STATE_CANCELED,
+            progress=100,
+            canceled=True,
+            params={"video_subject": "coffee"},
+        )
+
+        state.update_task(
+            "task-canceled",
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["late-final.mp4"],
+        )
+
+        task = state.get_task("task-canceled")
+        self.assertEqual(task["state"], const.TASK_STATE_CANCELED)
+        self.assertTrue(task["canceled"])
+        self.assertNotIn("videos", task)
+
 
 class TestRedisState(unittest.TestCase):
     def _build_state(self, batch_sizes):

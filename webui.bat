@@ -1,10 +1,27 @@
 @echo off
 setlocal
 set "CURRENT_DIR=%CD%"
+set "PARENT_DIR=%CURRENT_DIR%\.."
 echo ***** Current directory: %CURRENT_DIR% *****
 set "PYTHONPATH=%CURRENT_DIR%"
 
 rem set HF_ENDPOINT=https://hf-mirror.com
+
+if not defined IMAGEIO_FFMPEG_EXE (
+    if exist "%CURRENT_DIR%\lib\ffmpeg\ffmpeg-7.0-essentials_build\ffmpeg.exe" (
+        set "IMAGEIO_FFMPEG_EXE=%CURRENT_DIR%\lib\ffmpeg\ffmpeg-7.0-essentials_build\ffmpeg.exe"
+    ) else if exist "%PARENT_DIR%\lib\ffmpeg\ffmpeg-7.0-essentials_build\ffmpeg.exe" (
+        set "IMAGEIO_FFMPEG_EXE=%PARENT_DIR%\lib\ffmpeg\ffmpeg-7.0-essentials_build\ffmpeg.exe"
+    )
+)
+
+if not defined IMAGEMAGICK_BINARY (
+    if exist "%CURRENT_DIR%\lib\imagemagic\ImageMagick-7.1.1-29-portable-Q16-x64\magick.exe" (
+        set "IMAGEMAGICK_BINARY=%CURRENT_DIR%\lib\imagemagic\ImageMagick-7.1.1-29-portable-Q16-x64\magick.exe"
+    ) else if exist "%PARENT_DIR%\lib\imagemagic\ImageMagick-7.1.1-29-portable-Q16-x64\magick.exe" (
+        set "IMAGEMAGICK_BINARY=%PARENT_DIR%\lib\imagemagic\ImageMagick-7.1.1-29-portable-Q16-x64\magick.exe"
+    )
+)
 
 if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"
 if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
@@ -14,6 +31,8 @@ if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
     set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"
 ) else if exist "%CURRENT_DIR%\lib\python\python.exe" (
     set "STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit"
+) else if exist "%PARENT_DIR%\lib\python\python.exe" (
+    set "STREAMLIT_CMD="%PARENT_DIR%\lib\python\python.exe" -m streamlit"
 ) else (
     where uv >nul 2>nul
     if not errorlevel 1 set "STREAMLIT_CMD=uv run streamlit"

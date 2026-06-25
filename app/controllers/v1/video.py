@@ -15,6 +15,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
+from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import (
     AudioRequest,
@@ -112,6 +113,93 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     return f"/{uri_path}"
 
 
+TASK_OUTPUT_FIELDS = ("videos", "combined_videos")
+
+
+def task_matches_search_query(task: dict, search_query: str | None) -> bool:
+    normalized_query = (search_query or "").strip().lower()
+    if not normalized_query:
+        return True
+
+    task_id = str(task.get("task_id", "")).lower()
+    params = task.get("params") or {}
+    if not isinstance(params, dict):
+        params = {}
+    subject = str(params.get("video_subject", "")).lower()
+
+    return normalized_query in task_id or normalized_query in subject
+
+
+def format_task_for_response(
+    task: dict,
+    *,
+    request_id: str,
+    endpoint: str | None = None,
+    include_output_urls: bool = True,
+) -> dict:
+    response_task = dict(task)
+    if not include_output_urls:
+        return response_task
+
+    endpoint = config.app.get("endpoint", "").rstrip("/") if endpoint is None else endpoint
+    task_dir = utils.task_dir()
+    for field in TASK_OUTPUT_FIELDS:
+        if field in task:
+            response_task[field] = [
+                _task_file_to_uri(file, endpoint, task_dir, request_id)
+                for file in task[field]
+            ]
+    return response_task
+
+
+def get_tasks_page(
+    *,
+    page: int,
+    page_size: int,
+    request_id: str,
+    endpoint: str | None = None,
+    include_output_urls: bool = True,
+    state_filter: int | None = None,
+    newest_first: bool = False,
+    search_query: str | None = None,
+) -> dict:
+    has_search_query = bool((search_query or "").strip())
+    if state_filter is None and not newest_first and not has_search_query:
+        tasks, total = sm.state.get_all_tasks(page, page_size)
+    else:
+        tasks, total = sm.state.get_all_tasks(page=1, page_size=1)
+        if total:
+            tasks, total = sm.state.get_all_tasks(page=1, page_size=total)
+        if newest_first:
+            tasks = list(reversed(tasks))
+        if state_filter is not None:
+            tasks = [task for task in tasks if task.get("state") == state_filter]
+        if has_search_query:
+            tasks = [
+                task
+                for task in tasks
+                if task_matches_search_query(task, search_query)
+            ]
+        total = len(tasks)
+        start = (page - 1) * page_size
+        tasks = tasks[start : start + page_size]
+
+    return {
+        "tasks": [
+            format_task_for_response(
+                task,
+                request_id=request_id,
+                endpoint=endpoint,
+                include_output_urls=include_output_urls,
+            )
+            for task in tasks
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
 def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
@@ -138,8 +226,38 @@ def create_task(
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
 ):
-    task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+    task_id = utils.get_uuid()
+    try:
+        task = submit_task(
+            body=body,
+            stop_at=stop_at,
+            request_id=request_id,
+            task_id=task_id,
+        )
+        logger.success(f"Task created: {utils.to_json(task)}")
+        return utils.get_response(200, task)
+    except TaskQueueFullError as e:
+        raise HttpException(
+            task_id=task_id,
+            status_code=429,
+            message=f"{request_id}: {str(e)}",
+        )
+    except ValueError as e:
+        raise HttpException(
+            task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
+        )
+
+
+def submit_task(
+    *,
+    body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
+    stop_at: str,
+    request_id: str,
+    task_id: str | None = None,
+    task_func=tm.start,
+):
+    task_id = task_id or utils.get_uuid()
     try:
         task = {
             "task_id": task_id,
@@ -147,32 +265,35 @@ def create_task(
             "params": body.model_dump(),
         }
         sm.state.update_task(task_id)
-        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
-        logger.success(f"Task created: {utils.to_json(task)}")
-        return utils.get_response(200, task)
+        task_manager.add_task(task_func, task_id=task_id, params=body, stop_at=stop_at)
+        return task
     except TaskQueueFullError as e:
         sm.state.delete_task(task_id)
         logger.warning(
             f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"
         )
-        raise HttpException(
-            task_id=task_id, status_code=429, message=f"{request_id}: {str(e)}"
-        )
+        raise e
     except ValueError as e:
-        raise HttpException(
-            task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
-        )
+        raise e
 
 @router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
-def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
-    tasks, total = sm.state.get_all_tasks(page, page_size)
-
-    response = {
-        "tasks": tasks,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+def get_all_tasks(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+    state: int | None = None,
+    newest_first: bool = False,
+    search: str | None = None,
+):
+    request_id = base.get_task_id(request)
+    response = get_tasks_page(
+        page=page,
+        page_size=page_size,
+        request_id=request_id,
+        state_filter=state,
+        newest_first=newest_first,
+        search_query=search,
+    )
     return utils.get_response(200, response)
 
 
@@ -189,19 +310,11 @@ def get_task(
     endpoint = config.app.get("endpoint", "").rstrip("/")
     task = sm.state.get_task(task_id)
     if task:
-        task_dir = utils.task_dir()
-        response_task = dict(task)
-
-        if "videos" in task:
-            response_task["videos"] = [
-                _task_file_to_uri(v, endpoint, task_dir, request_id)
-                for v in task["videos"]
-            ]
-        if "combined_videos" in task:
-            response_task["combined_videos"] = [
-                _task_file_to_uri(v, endpoint, task_dir, request_id)
-                for v in task["combined_videos"]
-            ]
+        response_task = format_task_for_response(
+            task,
+            request_id=request_id,
+            endpoint=endpoint,
+        )
         return utils.get_response(200, response_task)
 
     raise HttpException(
@@ -216,20 +329,60 @@ def get_task(
 )
 def delete_video(request: Request, task_id: str = Path(..., description="Task ID")):
     request_id = base.get_task_id(request)
-    task = sm.state.get_task(task_id)
+    task = delete_task(task_id)
     if task:
-        tasks_dir = utils.task_dir()
-        current_task_dir = os.path.join(tasks_dir, task_id)
-        if os.path.exists(current_task_dir):
-            shutil.rmtree(current_task_dir)
-
-        sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
         return utils.get_response(200)
 
     raise HttpException(
         task_id=task_id, status_code=404, message=f"{request_id}: task not found"
     )
+
+
+def delete_task(task_id: str):
+    task = sm.state.get_task(task_id)
+    if not task:
+        return None
+
+    tasks_dir = utils.task_dir()
+    try:
+        current_task_dir = file_security.resolve_path_within_directory(
+            tasks_dir,
+            task_id,
+            require_file=False,
+        )
+    except ValueError as exc:
+        logger.warning(f"skip deleting unsafe task directory: {task_id}, error: {exc}")
+        current_task_dir = ""
+
+    if current_task_dir and os.path.isdir(current_task_dir):
+        shutil.rmtree(current_task_dir)
+
+    sm.state.delete_task(task_id)
+    return task
+
+
+def cancel_task(task_id: str):
+    task = sm.state.get_task(task_id)
+    if not task:
+        return None
+
+    if task.get("state") != const.TASK_STATE_PROCESSING:
+        return task
+
+    preserved_fields = {
+        key: value
+        for key, value in task.items()
+        if key not in {"task_id", "state", "progress"}
+    }
+    preserved_fields["canceled"] = True
+    sm.state.update_task(
+        task_id,
+        state=const.TASK_STATE_CANCELED,
+        progress=100,
+        **preserved_fields,
+    )
+    return sm.state.get_task(task_id)
 
 
 @router.get(
