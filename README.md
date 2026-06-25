@@ -96,13 +96,13 @@
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
 - 版本更新亮点：
-      项目版本从 v1.3.0 升级至 v2.0.0。
-      查看修改内容移步：docs/frontend-optimization-progress.md
-      为确保发布安全，已从 config.toml 文件中清除本地 DeepSeek API 密钥和 Pexels API 密钥值。
-      新增最新 WebUI 截图：docs/webui-v2.0.0.png。
-      提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
-      包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
-      新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。Windows
+  - 项目版本从 v1.3.0 升级至 v2.0.0。
+  - 查看修改内容移步：docs/frontend-optimization-progress.md
+  - 为确保发布安全，已从 config.toml 文件中清除本地 DeepSeek API 密钥和 Pexels API 密钥值。
+  - 新增最新 WebUI 截图：docs/webui-v2.0.0.png。
+  - 提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
+  - 包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
+  - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。Windows
 - 版本包：
       Windows 版本包生成为：
       dist/MoneyPrinterTurbo_Modification_v2.0.0_Windows.zip。
