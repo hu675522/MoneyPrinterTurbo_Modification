@@ -104,12 +104,12 @@
   - 包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
   - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。Windows
 - 版本包：
-      Windows 版本包生成为：
-      dist/MoneyPrinterTurbo_Modification_v2.0.0_Windows.zip。
-      从解压后的项目目录运行 webui.bat 即可启动 WebUI。
+  - Windows 版本包生成为：
+  - dist/MoneyPrinterTurbo_Modification_v2.0.0_Windows.zip。
+  - 从解压后的项目目录运行 webui.bat 即可启动 WebUI。
 - 验证
-      WebUI 已成功启动，地址为http://127.0.0.1:8501。
-      最新屏幕截图确认标题显示 MoneyPrinterTurbo v2.0.0。
+  - WebUI 已成功启动，地址为http://127.0.0.1:8501。
+  - 最新屏幕截图确认标题显示 MoneyPrinterTurbo v2.0.0。
   
 
 
