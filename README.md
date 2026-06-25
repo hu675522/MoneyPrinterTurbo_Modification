@@ -183,7 +183,7 @@
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
 
-- GitHub Release: https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
+- GitHub Release: https://github.com/hu675522/MoneyPrinterTurbo_Modification/releases/tag/v2.0.0
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
