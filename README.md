@@ -95,7 +95,7 @@
 - [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
-- 版本更新亮点：
+- V2.0.0版本更新亮点：
   - 查看修改内容请移步：docs/frontend-optimization-progress.md
   - 新增最新 WebUI 截图：docs/webui-v2.0.0.png。
   - 提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
