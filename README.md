@@ -114,7 +114,7 @@
   - 主题三模式完整适配、抖音素材链路合规升级、任务系统大重构、Main.py 模块化完成。
 - 版本包：
   - Windows 版本包生成为：
-  - dist/MoneyPrinterTurbo_Modification_v2.0.0_Windows.zip。
+  - dist/MoneyPrinterTurbo_Modification_v2.0.1_Windows.zip。
   - 从解压后的项目目录运行 webui.bat 即可启动 WebUI。
 - 修复内容（9 项） 
   - 以主题系统为主，覆盖 Dark/System 主题显示异常、按钮文字颜色、抖音模式切换体验、顶部标题遮挡、字幕滑块换行、文案按钮换行、基础设置乱码和文件头 BOM 问题。
