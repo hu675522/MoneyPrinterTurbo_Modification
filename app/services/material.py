@@ -1,4 +1,4 @@
-import os
+﻿import os
 import random
 import threading
 from typing import List
@@ -20,10 +20,8 @@ _api_key_lock = threading.Lock()
 
 
 def _get_tls_verify() -> bool:
-    # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
-    # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
-    # `config.toml` 显式设置 `tls_verify = false` 临时关闭。
-    tls_verify = config.app.get("tls_verify", True)
+    # 榛樿寮€鍚?TLS 璇佷功鏍￠獙锛岄槻姝㈢礌鏉愭悳绱㈠拰涓嬭浇杩囩▼琚腑闂翠汉绡℃敼銆?    # 浠呭湪浼佷笟浠ｇ悊銆佽嚜绛捐瘉涔︾瓑鏄庣‘闇€瑕佺殑鍦烘櫙涓嬶紝鍏佽鐢ㄦ埛閫氳繃
+    # `config.toml` 鏄惧紡璁剧疆 `tls_verify = false` 涓存椂鍏抽棴銆?    tls_verify = config.app.get("tls_verify", True)
     if isinstance(tls_verify, str):
         tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
 
@@ -175,21 +173,6 @@ def search_videos_coverr(
     """
     Coverr (https://coverr.co) - free HD/4K stock videos,
     subject to Coverr license terms (https://coverr.co/license).
-
-    Coverr API notes (based on official docs at api.coverr.co/docs/):
-      - 鉴权: Authorization: Bearer <api_key>
-      - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
-      - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
-      - URL 是 signed JWT(绑定 API key,无过期时间)
-      - Coverr 库以 16:9 横屏为主,9:16 portrait 占比极低(约 1%)
-        因此本函数不做 aspect_ratio 过滤,由下游 video.py 的
-        resize + letterbox 逻辑统一处理
-      - duration 字段同时存在 number 和 string 两种形态,本函数都接受
-
-    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
-    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
-    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
-    无需再调用 PATCH /videos/:id/stats/downloads。
     """
     api_key = get_api_key("coverr_api_keys")
     headers = {"Authorization": f"Bearer {api_key}"}
@@ -218,7 +201,6 @@ def search_videos_coverr(
             return video_items
 
         for v in response["hits"]:
-            # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
             try:
                 duration = int(float(v.get("duration") or 0))
             except (TypeError, ValueError):
@@ -246,7 +228,7 @@ def search_videos_coverr(
 def _get_bearer_api_headers(api_key: str = "") -> dict:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "MoneyPrinterTurbo/2.0.0",
+        "User-Agent": "MoneyPrinterTurbo/2.0.1",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -268,18 +250,79 @@ def _get_douyin_resolver_api_headers() -> dict:
     return _get_bearer_api_headers(api_key)
 
 
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# MODIFIED: _get_douyin_response_items
+# 鏀寔 TikHub Douyin Search V2 鐨?data.business_data[].data.aweme_info锛?# 鍚屾椂鍏煎 TikHub App 鍘熺敓 data.aweme_list 鍜岃嚜瀹氫箟涓棿浠舵牸寮?# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 def _get_douyin_response_items(response):
+    """
+    Normalize different Douyin/TikHub/custom API response shapes to a list of
+    video material dictionaries.
+
+    Supported shapes include:
+    - TikHub Douyin Search V2: data.business_data[].data.aweme_info
+    - TikHub Douyin App native: data.aweme_list
+    - Custom middleware: data.items / data.materials / data.videos / items / videos
+    """
     if isinstance(response, list):
         return response
+
     if not isinstance(response, dict):
         return []
+
     data = response.get("data")
-    if isinstance(data, dict):
-        return data.get("items") or data.get("materials") or data.get("videos") or []
+
     if isinstance(data, list):
         return data
-    return response.get("items") or response.get("materials") or response.get("videos") or []
 
+    if isinstance(data, dict):
+        # TikHub Douyin Search V2:
+        # data.business_data[].data.aweme_info
+        business_data = data.get("business_data")
+        if isinstance(business_data, list):
+            items = []
+            for wrapper in business_data:
+                if not isinstance(wrapper, dict):
+                    continue
+
+                wrapper_data = wrapper.get("data")
+                if isinstance(wrapper_data, dict):
+                    aweme_info = wrapper_data.get("aweme_info")
+                    if isinstance(aweme_info, dict):
+                        items.append(aweme_info)
+                        continue
+
+                aweme_info = wrapper.get("aweme_info")
+                if isinstance(aweme_info, dict):
+                    items.append(aweme_info)
+                    continue
+
+                # Keep a fallback item so custom gateways that wrap the media
+                # differently still have a chance to be parsed later.
+                items.append(wrapper)
+
+            return items
+
+        # TikHub / Douyin App native format: data.aweme_list
+        aweme_list = data.get("aweme_list")
+        if isinstance(aweme_list, list) and aweme_list:
+            return aweme_list
+
+        # Custom middleware formats
+        return (
+            data.get("items")
+            or data.get("materials")
+            or data.get("videos")
+            or data.get("list")
+            or []
+        )
+
+    return (
+        response.get("items")
+        or response.get("materials")
+        or response.get("videos")
+        or response.get("list")
+        or []
+    )
 
 def _get_douyin_response_single_or_items(response):
     items = _get_douyin_response_items(response)
@@ -293,8 +336,23 @@ def _get_douyin_response_single_or_items(response):
     return []
 
 
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# MODIFIED: _material_url_from_item
+# 鏂板瀵?TikHub 鎶栭煶 App 宓屽鏍煎紡 video.play_addr.url_list 鐨勬敮鎸?# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 def _material_url_from_item(item: dict) -> str:
-    for key in (
+    # TikHub Douyin App 鏍煎紡锛氳棰?URL 鍦ㄥ祵濂楃殑 video 瀵硅薄閲?    video = item.get("video")
+    if isinstance(video, dict):
+        # 浼樺厛鍙栨棤姘村嵃鍦板潃锛屽叾娆℃櫘閫氭挱鏀惧湴鍧€
+        for addr_key in ("download_addr", "play_addr_h264", "play_addr"):
+            addr = video.get(addr_key)
+            if isinstance(addr, dict):
+                url_list = addr.get("url_list")
+                if isinstance(url_list, list):
+                    for url in url_list:
+                        if isinstance(url, str) and url.strip():
+                            return url.strip()
+
+    # 鑷畾涔変腑闂翠欢 / 鏍囧噯骞抽摵鏍煎紡锛堝師鏈夐€昏緫淇濇寔涓嶅彉锛?    for key in (
         "download_url",
         "video_url",
         "image_url",
@@ -324,14 +382,33 @@ def _media_type_from_item(item: dict, media_url: str) -> str:
     return "video"
 
 
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# MODIFIED: _build_material_info_from_item
+# 鏂板瀵?TikHub 鎶栭煶 App 姣绾ф椂闀跨殑鑷姩杞崲
+# TikHub 杩斿洖鐨?video.duration 鍗曚綅鏄绉掞紙濡?15000 = 15绉掞級
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 def _build_material_info_from_item(item: dict, minimum_duration: int) -> MaterialInfo | None:
     media_url = _material_url_from_item(item)
     if not media_url:
         return None
 
     media_type = _media_type_from_item(item, media_url)
+
+    # TikHub Douyin App 鏍煎紡锛氭椂闀垮湪宓屽鐨?video 瀵硅薄閲岋紝鍗曚綅姣
+    duration_raw = None
+    video = item.get("video")
+    if isinstance(video, dict):
+        duration_raw = video.get("duration")
+    # 濡傛灉宓屽閲屾病鏈夛紝鍐嶅彇椤跺眰 duration锛堣嚜瀹氫箟涓棿浠舵牸寮忥紝鍗曚綅绉掞級
+    if duration_raw is None:
+        duration_raw = item.get("duration")
+
     try:
-        duration = int(float(item.get("duration") or minimum_duration))
+        duration_val = int(float(duration_raw or minimum_duration))
+        # 鑷姩妫€娴嬫绉掞細鎶栭煶 App 鍘熺敓鏃堕暱閫氬父鍦?1000~600000 姣鑼冨洿鍐?        # 濡傛灉鍊?> 600锛?0鍒嗛挓绉掓暟锛変笖鐪嬭捣鏉ユ槸姣閲忕骇锛屽垯闄や互1000杞崲
+        if duration_val > 600 and duration_val >= minimum_duration * 1000:
+            duration_val = duration_val // 1000
+        duration = duration_val
     except (TypeError, ValueError):
         duration = minimum_duration
 
@@ -348,6 +425,25 @@ def _build_material_info_from_item(item: dict, minimum_duration: int) -> Materia
     return material_item
 
 
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# MODIFIED: _search_videos_douyin_direct
+# TikHub Douyin Search V2 浣跨敤 POST JSON锛屼笉鍐嶅厛 GET 鍐?fallback
+# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+def _get_douyin_filter_duration(minimum_duration: int) -> str:
+    """
+    TikHub Douyin Search V2 filter_duration:
+    - "0": 涓嶉檺
+    - "0-1": 1鍒嗛挓浠ュ唴
+    - "1-5": 1-5鍒嗛挓
+    - "5-10000": 5鍒嗛挓浠ヤ笂
+    """
+    if minimum_duration >= 300:
+        return "5-10000"
+    if minimum_duration >= 60:
+        return "1-5"
+    return "0"
+
+
 def _search_videos_douyin_direct(
     search_term: str,
     minimum_duration: int,
@@ -357,40 +453,66 @@ def _search_videos_douyin_direct(
     if not api_url:
         logger.error(
             "douyin_material_api_url is not configured. "
-            "Configure an official or authorized Douyin material service first."
+            "Please set TikHub Douyin video search endpoint first."
         )
         return []
 
-    aspect = VideoAspect(video_aspect)
-    params = {
-        "query": search_term,
-        "minimum_duration": minimum_duration,
-        "aspect": aspect.value,
-        "sort": config.app.get("douyin_material_sort", "hot"),
-        "limit": int(config.app.get("douyin_material_limit", 20) or 20),
-    }
-    logger.info(f"searching douyin materials: {api_url}, params: {params}")
+    sort_value = str(config.app.get("douyin_material_sort", "hot") or "hot").lower()
 
-    r = requests.get(
+    # TikHub sort_type:
+    # 0=缁煎悎鎺掑簭, 1=鏈€澶氱偣璧? 2=鏈€鏂板彂甯?    sort_type_map = {
+        "hot": "0",
+        "popular": "1",
+        "latest": "2",
+        "newest": "2",
+    }
+
+    payload = {
+        "keyword": search_term,
+        "cursor": 0,
+        "sort_type": sort_type_map.get(sort_value, "0"),
+        "publish_time": "0",
+        "filter_duration": _get_douyin_filter_duration(minimum_duration),
+        "content_type": "1",
+        "search_id": "",
+        "backtrace": "",
+    }
+
+    logger.info(f"searching douyin materials: {api_url}, payload: {payload}")
+
+    headers = _get_douyin_material_api_headers()
+    headers["Content-Type"] = "application/json"
+
+    r = requests.post(
         api_url,
-        params=params,
-        headers=_get_douyin_material_api_headers(),
+        json=payload,
+        headers=headers,
         proxies=config.proxy,
         verify=_get_tls_verify(),
         timeout=(30, 60),
     )
+
+    logger.info(f"TikHub raw response code={r.status_code}, body={r.text[:2000]}")
+
+    if not r.ok:
+        logger.error(
+            f"TikHub douyin search failed: code={r.status_code}, body={r.text[:2000]}"
+        )
+        return []
+
     response = r.json()
     video_items: List[MaterialInfo] = []
 
     for raw_item in _get_douyin_response_items(response):
         if not isinstance(raw_item, dict):
             continue
+
         material_item = _build_material_info_from_item(raw_item, minimum_duration)
         if material_item:
+            material_item.provider = "douyin"
             video_items.append(material_item)
 
     return video_items
-
 
 def _metadata_video_url_from_item(item: dict) -> str:
     for key in ("video_url", "share_url", "aweme_url", "url", "link"):
@@ -817,14 +939,7 @@ def _download_videos_by_script_order(
     material_directory: str,
 ) -> List[str]:
     """
-    按脚本文案顺序下载素材。
-
-    默认下载逻辑会把所有关键词的候选素材合并成一个大列表；如果第一个
-    关键词返回很多结果，最终下载时可能一直消耗这个关键词的素材，后续
-    脚本主题就排不上时间线。这里按关键词分组后轮询下载：
-    第 1 轮取每个关键词的第 1 个候选，第 2 轮取每个关键词的第 2 个候选。
-    这样在不重写视频合成引擎的前提下，尽量保证素材顺序贴近文案顺序。
-    """
+    鎸夎剼鏈枃妗堥『搴忎笅杞界礌鏉愩€?    """
     logger.info("downloading videos with script-order material matching")
     candidate_groups = []
     valid_video_urls = set()

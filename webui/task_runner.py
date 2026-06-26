@@ -38,7 +38,39 @@ def _append_log(task_id: str, message: str):
         _logs.setdefault(task_id, []).append(message.rstrip())
 
 
+def _safe_remove_logger_handler(handler_id: int | None):
+    """
+    Remove the per-task Loguru handler safely.
+
+    In some Streamlit/WebUI rerun or task-cancel paths, the same handler may have
+    already been removed by Loguru or another cleanup path. Calling logger.remove()
+    again raises ValueError: "There is no existing handler with id ...". That
+    secondary cleanup error should not mask the real task failure, so we ignore it.
+    """
+    if handler_id is None:
+        return
+
+    try:
+        logger.remove(handler_id)
+    except ValueError:
+        # Handler has already been removed; this is harmless during cleanup.
+        pass
+    except Exception:
+        # Do not let logging cleanup crash the task runner.
+        pass
+
+
+def _safe_store_params_snapshot(task_id: str, params: VideoParams):
+    try:
+        _store_params_snapshot(task_id, params)
+    except Exception:
+        # Keep the original traceback visible in WebUI logs, but do not block
+        # logger handler cleanup.
+        _append_log(task_id, traceback.format_exc())
+
+
 def _run_task_with_logs(task_id: str, params: VideoParams, stop_at: str = "video"):
+    handler_id: int | None = None
     handler_id = logger.add(lambda msg: _append_log(task_id, str(msg)))
     try:
         current_task = sm.state.get_task(task_id)
@@ -66,8 +98,8 @@ def _run_task_with_logs(task_id: str, params: VideoParams, stop_at: str = "video
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, progress=100)
         return None
     finally:
-        _store_params_snapshot(task_id, params)
-        logger.remove(handler_id)
+        _safe_store_params_snapshot(task_id, params)
+        _safe_remove_logger_handler(handler_id)
 
 
 def submit_task(task_id: str, params: VideoParams) -> Future:

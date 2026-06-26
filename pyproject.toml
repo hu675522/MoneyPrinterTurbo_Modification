@@ -1,13 +1,13 @@
-# 说明：
-# 1. 主依赖来源统一收敛到 pyproject.toml。
-# 2. 运行环境通过 uv.lock 固定，避免不同机器解析出不同版本组合。
+﻿# 璇存槑锛?
+# 1. 涓讳緷璧栨潵婧愮粺涓€鏀舵暃鍒?pyproject.toml銆?
+# 2. 杩愯鐜閫氳繃 uv.lock 鍥哄畾锛岄伩鍏嶄笉鍚屾満鍣ㄨВ鏋愬嚭涓嶅悓鐗堟湰缁勫悎銆?
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "moneyprinterturbo"
-version = "2.0.0"
+version = "2.0.1"
 description = "Generate short videos from prompts, local assets, subtitles, and TTS."
 readme = "README-en.md"
 requires-python = ">=3.10,<3.13"
@@ -42,5 +42,5 @@ g4f = [
 packages = ["app"]
 
 [tool.uv]
-# 当前项目以应用运行形态为主，不作为可发布的 Python 包安装。
+# 褰撳墠椤圭洰浠ュ簲鐢ㄨ繍琛屽舰鎬佷负涓伙紝涓嶄綔涓哄彲鍙戝竷鐨?Python 鍖呭畨瑁呫€?
 package = false

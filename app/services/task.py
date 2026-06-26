@@ -174,7 +174,7 @@ def generate_audio(task_id, params, video_script):
             logger.error(
                 """failed to generate audio:
 1. check if the language of the voice matches the language of the video script.
-2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
+2. check if the TTS service network is available, proxy settings are correct, and the provider account/quota is valid.
             """.strip()
             )
             return None, None, None
@@ -265,7 +265,10 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         if not downloaded_videos:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error(
-                "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
+                "素材下载失败。可能原因：没有搜索到素材、素材接口报错、"
+                "TikHub 余额不足或该接口不接受免费额度、接口地址/Key 配置错误、"
+                "返回的下载地址无效，或网络请求失败。请查看上方 app/services/material.py "
+                "的详细日志，例如 TikHub code=402/403/404/422。"
             )
             return None
         return downloaded_videos

@@ -1,4 +1,4 @@
-import os
+﻿import os
 from uuid import uuid4
 
 import streamlit as st
@@ -14,14 +14,22 @@ SUPPORTED_VIDEO_SOURCES = {"pexels", "pixabay", "coverr", "local", "douyin"}
 LOCAL_MATERIAL_SOURCES = {"local"}
 
 
-def is_douyin_material_configured(app_config: dict) -> bool:
-    source_mode = str(app_config.get("douyin_material_source_mode", "direct") or "direct")
+def get_douyin_material_config_error_key(app_config: dict) -> str:
+    source_mode = str(
+        app_config.get("douyin_material_source_mode", "direct") or "direct"
+    ).lower()
+
     if source_mode == "metadata":
-        return bool(
-            app_config.get("douyin_metadata_api_url", "")
-            and app_config.get("douyin_resolver_api_url", "")
-        )
-    return bool(app_config.get("douyin_material_api_url", ""))
+        if not app_config.get("douyin_metadata_api_url", ""):
+            return "Please Configure the Douyin Metadata API URL"
+        if not app_config.get("douyin_resolver_api_url", ""):
+            return "Please Configure the Douyin Resolver API URL"
+        return ""
+
+    if not app_config.get("douyin_material_api_url", ""):
+        return "Please Configure the Douyin Material API"
+
+    return ""
 
 
 def get_generation_error_key(params, app_config: dict) -> str:
@@ -40,8 +48,10 @@ def get_generation_error_key(params, app_config: dict) -> str:
     if params.video_source == "coverr" and not app_config.get("coverr_api_keys", ""):
         return "Please Enter the Coverr API Key"
 
-    if params.video_source == "douyin" and not is_douyin_material_configured(app_config):
-        return "Please Configure the Douyin Material API"
+    if params.video_source == "douyin":
+        douyin_error_key = get_douyin_material_config_error_key(app_config)
+        if douyin_error_key:
+            return douyin_error_key
 
     return ""
 
