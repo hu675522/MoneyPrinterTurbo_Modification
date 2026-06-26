@@ -95,6 +95,16 @@
 - [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
+- v2.0.1版本修复内容
+  - 修复抖音素材接口请求方式问题：TikHub 抖音搜索接口改为 POST JSON 请求，避免错误使用 GET 导致接口调用失败。
+  - 增强抖音素材返回解析：兼容 TikHub 抖音搜索结果中的嵌套视频数据结构，提升素材识别成功率。
+  - 优化 TikHub 错误提示：针对 402、403、404 等状态码给出更准确的日志说明，避免把余额不足、权限不足或接口地址错误误判为网络/VPN问题。
+  - 增强日志安全性：隐藏 Authorization、Bearer Token、API Key 等敏感信息，避免接口错误响应回显时泄露密钥。
+  - 修复 WebUI 抖音素材配置校验：区分“直接素材接口”和“第三方数据接口 + 授权解析”两种模式，缺少不同配置时显示对应提示。
+  - 修复 WebUI 任务日志 handler 重复移除导致的异常：避免出现 ValueError: There is no existing handler with id ...。
+  - 优化任务失败提示：素材下载失败时不再统一提示“大陆网络/VPN问题”，改为提示素材为空、接口报错、余额不足、免费额度不可用、接口地址错误或下载地址无效等可能原因。
+  - 优化 TTS 失败提示：移除过度指向 VPN 的提示，改为提示检查 TTS 网络、代理、账号额度与语音语言配置。
+
 - V2.0.0版本更新亮点：
   - 查看修改内容请移步：docs/frontend-optimization-progress.md
   - 新增最新 WebUI 截图：docs/webui-v2.0.0.png。
