@@ -21,7 +21,8 @@ _api_key_lock = threading.Lock()
 
 def _get_tls_verify() -> bool:
     # 榛樿寮€鍚?TLS 璇佷功鏍￠獙锛岄槻姝㈢礌鏉愭悳绱㈠拰涓嬭浇杩囩▼琚腑闂翠汉绡℃敼銆?    # 浠呭湪浼佷笟浠ｇ悊銆佽嚜绛捐瘉涔︾瓑鏄庣‘闇€瑕佺殑鍦烘櫙涓嬶紝鍏佽鐢ㄦ埛閫氳繃
-    # `config.toml` 鏄惧紡璁剧疆 `tls_verify = false` 涓存椂鍏抽棴銆?    tls_verify = config.app.get("tls_verify", True)
+    # `config.toml` 显式设置 `tls_verify = false` 时临时关闭。
+    tls_verify = config.app.get("tls_verify", True)
     if isinstance(tls_verify, str):
         tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
 
@@ -340,7 +341,8 @@ def _get_douyin_response_single_or_items(response):
 # MODIFIED: _material_url_from_item
 # 鏂板瀵?TikHub 鎶栭煶 App 宓屽鏍煎紡 video.play_addr.url_list 鐨勬敮鎸?# 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 def _material_url_from_item(item: dict) -> str:
-    # TikHub Douyin App 鏍煎紡锛氳棰?URL 鍦ㄥ祵濂楃殑 video 瀵硅薄閲?    video = item.get("video")
+    # TikHub Douyin App 格式：视频 URL 在嵌套的 video 对象里
+    video = item.get("video")
     if isinstance(video, dict):
         # 浼樺厛鍙栨棤姘村嵃鍦板潃锛屽叾娆℃櫘閫氭挱鏀惧湴鍧€
         for addr_key in ("download_addr", "play_addr_h264", "play_addr"):
@@ -352,7 +354,8 @@ def _material_url_from_item(item: dict) -> str:
                         if isinstance(url, str) and url.strip():
                             return url.strip()
 
-    # 鑷畾涔変腑闂翠欢 / 鏍囧噯骞抽摵鏍煎紡锛堝師鏈夐€昏緫淇濇寔涓嶅彉锛?    for key in (
+    # 自定义中间件 / 标准平铺格式（原有逻辑保持不变）
+    for key in (
         "download_url",
         "video_url",
         "image_url",
@@ -460,7 +463,8 @@ def _search_videos_douyin_direct(
     sort_value = str(config.app.get("douyin_material_sort", "hot") or "hot").lower()
 
     # TikHub sort_type:
-    # 0=缁煎悎鎺掑簭, 1=鏈€澶氱偣璧? 2=鏈€鏂板彂甯?    sort_type_map = {
+    # 0=综合排序, 1=最多点赞, 2=最新发布
+    sort_type_map = {
         "hot": "0",
         "popular": "1",
         "latest": "2",
