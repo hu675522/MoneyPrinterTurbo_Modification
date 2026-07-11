@@ -96,7 +96,7 @@
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
 ## v2.1.0
-- 新增功能
+### 新增功能
  - 新增本地人声唇形同步功能，支持本地录制的视频和生成或上传的音频。
  - 新增 tools/lipsync/run_wav2lip.py 作为跨平台 Wav2Lip 启动器。
  - 新增 Windows 版 run_wav2lip.bat 启动器，并保留 macOS/Linux 版 run_wav2lip.sh 启动器。
@@ -107,7 +107,7 @@
  - 新增了已授权的抖音素材 API 模式、元数据/解析器集成以及可选的增强钩子。
  - 新增了后台任务执行、取消检查点、历史记录搜索/筛选/分页、重试和参数恢复功能。
  - 除了 Windows 的一键脚本外，还新增了 macOS/Linux 的 root 启动和更新脚本。
-- 优化和修复
+  ### 优化和修复
  - 修复了浅色、深色和系统主题同步以及组件颜色不一致的问题。
  - 将顶部“基本设置”和“API密钥”控件与其内容区域对齐。
  - 改进了紧凑型WebUI布局、按钮换行、字幕控件、任务摘要和空状态。
@@ -116,7 +116,7 @@
  - 改进了抖音API请求兼容性、嵌套响应解析、错误信息和密钥掩码。
  - 改进了TTS、本地素材和任务失败信息。
  - 修复了macOS上Wav2Lip、PyTorch和librosa的多个依赖项兼容性问题。
-- 已验证
+  ### 已验证
  - macOS WebUI启动和HTTP访问。
  - macOS FFmpeg安装和视频解码。
  - 上传了自定义音频生成路径和相关的自动化测试。
