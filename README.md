@@ -19,7 +19,7 @@
 
 <h4>Web界面</h4>
 
-![](docs/webui-v2.0.1.png)
+![](docs/webui-v2.1.0.png)
 
 <h4>API界面</h4>
 
