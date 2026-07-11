@@ -503,4 +503,10 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hu675522/MoneyPrinterTurbo_Modification&type=Date&theme=dark)](https://star-history.com/#hu675522/MoneyPrinterTurbo_Modification&Date)
+<a href="https://www.star-history.com/?repos=hu675522%2FMoneyPrinterTurbo_Modification&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=hu675522/MoneyPrinterTurbo_Modification&type=date&theme=dark&legend=bottom-right&sealed_token=Jk-Rxqzn8WACZelcZDpottZw_wLlgBLM8mfAo-KYIisPtRwg87gIj4DUG7QoV2qgTe7F-KydIs-rOEIc6Wx61EJXnQpd28T1BvwGOzMm7_1favF5Ii-bYiqZtSxM2Ti6Vs0JhF5UDdCly-MslO010oVgINClm0p-CHrGGCLI2RpZaZEkTPxG_0Bw6F6e" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=hu675522/MoneyPrinterTurbo_Modification&type=date&legend=bottom-right&sealed_token=Jk-Rxqzn8WACZelcZDpottZw_wLlgBLM8mfAo-KYIisPtRwg87gIj4DUG7QoV2qgTe7F-KydIs-rOEIc6Wx61EJXnQpd28T1BvwGOzMm7_1favF5Ii-bYiqZtSxM2Ti6Vs0JhF5UDdCly-MslO010oVgINClm0p-CHrGGCLI2RpZaZEkTPxG_0Bw6F6e" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=hu675522/MoneyPrinterTurbo_Modification&type=date&legend=bottom-right&sealed_token=Jk-Rxqzn8WACZelcZDpottZw_wLlgBLM8mfAo-KYIisPtRwg87gIj4DUG7QoV2qgTe7F-KydIs-rOEIc6Wx61EJXnQpd28T1BvwGOzMm7_1favF5Ii-bYiqZtSxM2Ti6Vs0JhF5UDdCly-MslO010oVgINClm0p-CHrGGCLI2RpZaZEkTPxG_0Bw6F6e" />
+ </picture>
+</a>
