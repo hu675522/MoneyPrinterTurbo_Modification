@@ -95,27 +95,33 @@
 - [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
-- V2.1.0 版本更新亮点：
-  - 查看修改内容请移步：docs/frontend-optimization-progress.md
-  - 新增本地视频 + 自定义音频的口播对口型工作流，macOS 已完成真实视频验证。
-  - 新增跨平台 Wav2Lip Python 启动器，以及 Windows `.bat`、macOS/Linux `.sh` 辅助入口。
-  - 修复上传自定义语音后字幕与视频合成链路，缺少 TTS 字幕对象时可回退到 Whisper。
-  - 优化 Light、Dark、System 三种主题、顶部基础设置/API Key 面板对齐和任务历史界面。
-  - 提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
-  - 包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
-  - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。
-  - 主题三模式完整适配、抖音素材链路合规升级、任务系统大重构、Main.py 模块化完成。
-- 版本包：
-  - Windows 版本包生成为：
-  - dist/MoneyPrinterTurbo_Modification_v2.1.0_Full.zip。
-  - 从解压后的项目目录运行 webui.bat 即可启动 WebUI。
-- 修复内容（9 项） 
-  - 以主题系统为主，覆盖 Dark/System 主题显示异常、按钮文字颜色、抖音模式切换体验、顶部标题遮挡、字幕滑块换行、文案按钮换行、基础设置乱码和文件头 BOM 问题。
-- 新增内容 分四大块：
-  - 抖音素材：从上传本地改为授权在线素材源，新增 metadata 模式（第三方接口 + 解析服务）和 AI 增强钩子
-  - 任务系统：后台化、软中止、取消检查点、任务历史面板（搜索/筛选/分页/重试/参数回填）
-  - 主题 & 布局：theme.py 集中管理、四面板同行对齐、顶部同步展开、任务状态三列摘要、分页控件优化
-  - 模块化拆分：Main.py 拆出 15+ 独立模块；
+## v2.1.0
+- 新增功能
+ - 新增本地人声唇形同步功能，支持本地录制的视频和生成或上传的音频。
+ - 新增 tools/lipsync/run_wav2lip.py 作为跨平台 Wav2Lip 启动器。
+ - 新增 Windows 版 run_wav2lip.bat 启动器，并保留 macOS/Linux 版 run_wav2lip.sh 启动器。
+ - 为可配置的唇音同步命令添加了 {python} 支持。
+ - 在 WebUI 和 TOML 配置中新增了可配置的唇音同步启用开关、命令和超时设置。
+ - 新增了自定义音频字幕回退机制：当上传的音频没有 TTS 字幕对象时，Whisper 可以根据音频生成字幕。
+ - 新增了 Pexels、Pixabay 和 Coverr 的 API 密钥管理功能。
+ - 新增了已授权的抖音素材 API 模式、元数据/解析器集成以及可选的增强钩子。
+ - 新增了后台任务执行、取消检查点、历史记录搜索/筛选/分页、重试和参数恢复功能。
+ - 除了 Windows 的一键脚本外，还新增了 macOS/Linux 的 root 启动和更新脚本。
+- 优化和修复
+ - 修复了浅色、深色和系统主题同步以及组件颜色不一致的问题。
+ - 将顶部“基本设置”和“API密钥”控件与其内容区域对齐。
+ - 改进了紧凑型WebUI布局、按钮换行、字幕控件、任务摘要和空状态。
+ - 将庞大的Streamlit入口页面拆分为多个功能模块，并集中了主题样式。
+ - 改进了macOS和Windows便携版中FFmpeg的发现。
+ - 改进了抖音API请求兼容性、嵌套响应解析、错误信息和密钥掩码。
+ - 改进了TTS、本地素材和任务失败信息。
+ - 修复了macOS上Wav2Lip、PyTorch和librosa的多个依赖项兼容性问题。
+- 已验证
+ - macOS WebUI启动和HTTP访问。
+ - macOS FFmpeg安装和视频解码。
+ - 上传了自定义音频生成路径和相关的自动化测试。
+ - 实际输出了4秒本地Wav2Lip视频，分辨率为360x640，帧率为30fps，时长9分16秒，音频为AAC格式。
+ - 全自动测试套件：通过 307 项测试，跳过 5 项。
 
 ## 视频演示 📺
 
