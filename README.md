@@ -501,6 +501,6 @@ Trying to load the model directly from the local cache, if it exists.
 
 点击查看 [`LICENSE`](LICENSE) 文件
 
-## Star History
+## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=hu675522/MoneyPrinterTurbo_Modification&type=Date&theme=dark)](https://star-history.com/#hu675522/MoneyPrinterTurbo_Modification&Date)
