@@ -503,4 +503,4 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hu675522/MoneyPrinterTurbo_Modification&type=Date&theme=dark)](https://star-history.com/#hu675522/MoneyPrinterTurbo_Modification&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=hu675522/MoneyPrinterTurbo_Modification&type=Date)](https://star-history.com/#hu675522/MoneyPrinterTurbo_Modification&Date)
