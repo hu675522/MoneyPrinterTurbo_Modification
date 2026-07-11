@@ -181,6 +181,8 @@
 - Windows 使用 `start.bat` / `api.bat` / `update.bat`
 - macOS 使用 `./start.sh` / `./api.sh` / `./update.sh`
 
+启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
+
 ## 首次运行
 在终端进入解压目录：
 ```sh
@@ -214,8 +216,6 @@ brew install ffmpeg
 ```
 默认监听配置读取项目根目录的 `config.toml`。
 
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
-
 ### 在 Google Colab 中运行
 
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
@@ -232,7 +232,7 @@ brew install ffmpeg
 #### ① 克隆代码
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/hu675522/MoneyPrinterTurbo_Modification.git
 ```
 
 #### ② 修改配置文件（可选，建议启动后也可以在 WebUI 里面配置）
