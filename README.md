@@ -173,28 +173,54 @@
 
 ### 推荐使用方式
 
-- Windows 用户：优先使用一键启动包，适合快速体验
-- MacOS / Linux 用户：优先使用 `uv sync --frozen` 进行本地部署
-- 想要隔离运行环境：优先使用 Docker 部署
+下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
+
+- GitHub Release: https://github.com/hu675522/MoneyPrinterTurbo_Modification/releases/tag/v2.1.0
+
+# Windows用户、macOS用户 运行说明
+- Windows 使用 `start.bat` / `api.bat` / `update.bat`
+- macOS 使用 `./start.sh` / `./api.sh` / `./update.sh`
+
+## 首次运行
+在终端进入解压目录：
+```sh
+cd /path/to/MoneyPrinterTurbo_Modification
+./update.sh
+./start.sh
+```
+`update.sh` 会优先使用 `uv sync --frozen`。如果没有安装 `uv`，会自动创建
+`MoneyPrinterTurbo/.venv`，并把 Python 依赖安装到这个虚拟环境中。
+
+## FFmpeg
+Windows 包内的 `lib/ffmpeg/.../ffmpeg.exe` 不能在 macOS 上运行。macOS 需要安装
+自己的 `ffmpeg`，否则视频合成阶段可能失败。
+
+推荐方式是通过包管理器安装：
+```sh
+brew install ffmpeg
+```
+如果没有 Homebrew，也可以用 MacPorts、Conda，或下载可信来源的 macOS ffmpeg，
+并确保 `ffmpeg` 命令能在终端中直接运行。
+如果使用用户级 FFmpeg，可将其放在：
+```sh
+~/.local/bin/ffmpeg
+```
+`start.sh`、`api.sh`、`update.sh` 和 `webui.sh` 会自动把 `~/.local/bin`
+加入当前进程的 `PATH`。
+
+## API 服务
+```sh
+./api.sh
+```
+默认监听配置读取项目根目录的 `config.toml`。
+
+启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 
 ### 在 Google Colab 中运行
 
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows一键启动包
-
-下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
-
-- GitHub Release: https://github.com/hu675522/MoneyPrinterTurbo_Modification/releases/tag/v2.1.0
-
-下载后：
-
-- Windows：可以先**双击执行** `update.bat` 检查运行环境并补装依赖；如果使用的是 Release 压缩包，它会跳过源码更新。然后双击 `start.bat` 启动。
-- macOS / Linux：进入解压后的项目根目录，先运行 `./update.sh` 安装依赖，再运行 `./start.sh` 启动 WebUI。API 服务可运行 `./api.sh`。
-
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 
 ## 安装部署 📥
 
