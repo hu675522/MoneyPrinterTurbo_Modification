@@ -229,6 +229,13 @@
     "Coverr API Key deleted successfully": "Coverr API 密钥删除成功",
     "Advanced Video Settings": "高级视频设置",
     "Video Encoder": "视频编码器",
-    "Video Encoder Help": "高级选项。默认 libx264 最稳定；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。"
+    "Video Encoder Help": "高级选项。默认 libx264 最稳定；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。",
+    "Enable Lip Sync": "启用对口型",
+    "Lip Sync Help": "仅用于本地拍摄的口播视频。程序会先生成配音和基础视频，再调用你配置的本地对口型命令。",
+    "Lip Sync Command": "对口型命令",
+    "Lip Sync Command Help": "可使用占位符：{video}、{audio}、{output}、{python}、{workdir}。跨平台示例：{python} tools/lipsync/run_wav2lip.py {video} {audio} {output}",
+    "Lip Sync Timeout": "对口型超时时间（秒）",
+    "Lip Sync Requires Local Video Source": "对口型功能需要选择本地文件视频来源",
+    "Please Configure Lip Sync Command": "请先配置对口型命令"
   }
 }

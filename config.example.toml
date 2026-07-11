@@ -307,6 +307,27 @@ subtitle_provider = "edge"
 # If the selected encoder is not supported by the current FFmpeg or driver, the app falls back to libx264.
 # Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
 # video_codec = "libx264"
+
+# Lip sync post-processing for locally filmed talking-head videos.
+# Enable this only after installing a local lip-sync model such as Wav2Lip,
+# MuseTalk, or another tool that accepts input video, input audio, and output
+# video paths. The command can use these placeholders:
+#   {video}   generated base video path
+#   {audio}   generated or uploaded voice audio path
+#   {output}  final lip-synced video path
+#   {python}  current Python executable that is running MoneyPrinterTurbo
+#   {workdir} MoneyPrinterTurbo project directory
+# Cross-platform Wav2Lip wrapper installed by this project:
+# lip_sync_command = "{python} tools/lipsync/run_wav2lip.py {video} {audio} {output}"
+# Windows batch wrapper, if you want to run it manually:
+# lip_sync_command = "tools\\lipsync\\run_wav2lip.bat {video} {audio} {output}"
+# macOS/Linux shell wrapper, if you want to run it manually:
+# lip_sync_command = "sh tools/lipsync/run_wav2lip.sh {video} {audio} {output}"
+# Generic example:
+# lip_sync_command = "python /path/to/Wav2Lip/inference.py --checkpoint_path /path/to/wav2lip.pth --face {video} --audio {audio} --outfile {output}"
+lip_sync_enabled = false
+lip_sync_command = "{python} tools/lipsync/run_wav2lip.py {video} {audio} {output}"
+lip_sync_timeout = 1800
 #########################################################################################
 
 # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import socket
 
@@ -17,16 +17,16 @@ def is_running_in_container(
     cgroup_path: str = "/proc/1/cgroup",
 ) -> bool:
     """
-    鍒ゆ柇褰撳墠杩涚▼鏄惁杩愯鍦ㄥ鍣ㄥ唴銆?
+    Return whether the current process is running inside a container.
 
-    杩欎釜鍒ゆ柇涓昏鐢ㄤ簬 Ollama 榛樿鍦板潃閫夋嫨锛?
-    - 鏅€氭湰鏈鸿繍琛屾椂锛宍localhost` 鎸囧悜鐢ㄦ埛鏈哄櫒鏈韩锛?
-    - Docker 瀹瑰櫒鍐咃紝`localhost` 鎸囧悜瀹瑰櫒鑷繁锛岃闂涓绘満 Ollama
-      閫氬父闇€瑕佷娇鐢?`host.docker.internal`銆?
+    This is used to choose the best default Ollama base URL:
+    - On a normal host, localhost points to the user's machine.
+    - Inside Docker, localhost points to the container, so host services are
+      usually reached through host.docker.internal.
 
-    涓嶈兘鍙垽鏂?`/proc/1/cgroup` 鏄惁瀛樺湪锛屽洜涓烘櫘閫?Linux 涔熶細鏈夎繖涓枃浠躲€?
-    杩欓噷鍙湪妫€娴嬪埌鏄庣‘鐨勫鍣ㄦ爣璁版椂杩斿洖 True锛岄伩鍏嶈浼ら潪 Docker Linux 鐢ㄦ埛銆?
-    鍙傛暟淇濈暀涓哄彲娉ㄥ叆璺緞锛屼究浜庡崟鍏冩祴璇曡鐩栦笉鍚岃繍琛岀幆澧冦€?
+    Do not treat the presence of /proc/1/cgroup alone as proof of a
+    container; normal Linux hosts have it too. The path parameters are kept
+    injectable so unit tests can cover different runtime environments.
     """
     if os.path.isfile(dockerenv_path) or os.path.isfile(containerenv_path):
         return True
@@ -49,9 +49,9 @@ def _can_resolve_hostname(hostname: str) -> bool:
 
 
 def _decode_linux_route_gateway(hex_gateway: str) -> str:
-    # /proc/net/route 閲岀殑 Gateway 鏄?16 杩涘埗灏忕搴忥紝渚嬪 010011AC 琛ㄧず
-    # 172.17.0.1銆傝繖閲屽崟鐙В鏋愶紝鏄负浜嗗湪鍘熺敓 Linux Docker 娌℃湁
-    # host.docker.internal DNS 璁板綍鏃讹紝杩樿兘灏濊瘯璁块棶瀹瑰櫒榛樿缃戝叧涓婄殑瀹夸富鏈恒€?
+    # /proc/net/route stores Gateway as little-endian hex; for example,
+    # 010011AC means 172.17.0.1. This fallback helps native Linux Docker
+    # installs where host.docker.internal is not resolvable.
     if len(hex_gateway) != 8:
         raise ValueError("invalid gateway length")
 
@@ -64,12 +64,10 @@ def _decode_linux_route_gateway(hex_gateway: str) -> str:
 
 def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str:
     """
-    璇诲彇 Linux 瀹瑰櫒閲岀殑榛樿缃戝叧 IP銆?
+    Return the default gateway IP from a Linux container route table.
 
-    Docker Desktop 閫氬父鎻愪緵 `host.docker.internal`锛屼絾鍘熺敓 Linux Docker
-    榛樿涓嶄竴瀹氭彁渚涜繖涓?DNS 鍚嶇О銆傞粯璁ょ綉鍏抽€氬父鍙互浣滀负璁块棶瀹夸富鏈烘湇鍔＄殑
-    鍏滃簳鍦板潃锛涘鏋滅敤鎴风殑 Ollama 鍙洃鍚?127.0.0.1锛屽垯浠嶉渶瑕佺敤鎴疯
-    Ollama 鐩戝惉瀹夸富鏈虹綉鍗℃垨鎵嬪姩閰嶇疆 `ollama_base_url`銆?
+    Docker Desktop usually provides host.docker.internal, but native Linux
+    Docker may not. The gateway is a best-effort fallback for host services.
     """
     try:
         with open(route_path, mode="r", encoding="utf-8") as fp:
@@ -98,10 +96,10 @@ def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str
 
 def get_default_ollama_base_url() -> str:
     """
-    杩斿洖 Ollama 鐨勯粯璁?OpenAI-compatible base_url銆?
+    Return the default OpenAI-compatible Ollama base URL.
 
-    鐢ㄦ埛鏄惧紡閰嶇疆 `ollama_base_url` 鏃朵笉浼氳蛋杩欓噷锛涜繖閲屽彧澶勭悊鈥滄湭閰嶇疆鏃剁殑
-    鏈€浣抽粯璁ゅ€尖€濄€傚鍣ㄥ唴榛樿鎸囧悜瀹夸富鏈猴紝鏅€氭湰鏈鸿繍琛岄粯璁ゆ寚鍚?localhost銆?
+    Explicit user configuration takes precedence. This only chooses a sensible
+    fallback for host vs container runtime.
     """
     if not is_running_in_container():
         return "http://localhost:11434/v1"
@@ -182,7 +180,7 @@ project_description = _cfg.get(
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>"
     "<br><small>Supported by <a href='https://aihubmix.com/?aff=CEve'>AIHubMix</a></small>",
 )
-project_version = _cfg.get("project_version", "2.0.1")
+project_version = _cfg.get("project_version", "2.1.0")
 reload_debug = False
 
 app["redis_host"] = os.getenv(

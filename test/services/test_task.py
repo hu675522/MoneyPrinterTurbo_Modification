@@ -228,6 +228,133 @@ class TestTaskService(unittest.TestCase):
         tts.assert_not_called()
         update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
 
+    def test_generate_subtitle_uses_whisper_when_custom_audio_has_no_submaker(self):
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="",
+            subtitle_enabled=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with (
+                patch.object(
+                    tm.config,
+                    "app",
+                    dict(tm.config.app, subtitle_provider="edge"),
+                ),
+                patch.object(tm.utils, "task_dir", return_value=tmp_dir),
+                patch.object(tm.subtitle, "create") as subtitle_create,
+                patch.object(tm.subtitle, "correct") as subtitle_correct,
+                patch.object(tm.subtitle, "file_to_subtitles", return_value=["line"]),
+                patch.object(tm.voice, "create_subtitle") as edge_create_subtitle,
+            ):
+                subtitle_path = tm.generate_subtitle(
+                    task_id="custom-audio-subtitle",
+                    params=params,
+                    video_script="hello world",
+                    sub_maker=None,
+                    audio_file="/tmp/custom-audio.mp3",
+                )
+
+        self.assertEqual(subtitle_path, os.path.join(tmp_dir, "subtitle.srt"))
+        edge_create_subtitle.assert_not_called()
+        subtitle_create.assert_called_once_with(
+            audio_file="/tmp/custom-audio.mp3",
+            subtitle_file=os.path.join(tmp_dir, "subtitle.srt"),
+        )
+        subtitle_correct.assert_called_once_with(
+            subtitle_file=os.path.join(tmp_dir, "subtitle.srt"),
+            video_script="hello world",
+        )
+
+    def test_generate_final_videos_runs_lip_sync_when_enabled(self):
+        task_id = "test-lip-sync-final-video"
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="local",
+            video_count=1,
+            lip_sync_enabled=True,
+            lip_sync_command="echo ok",
+        )
+        tm.sm.state.update_task(
+            task_id,
+            state=tm.const.TASK_STATE_PROCESSING,
+            progress=50,
+        )
+
+        try:
+            with (
+                patch.object(tm.video, "combine_videos"),
+                patch.object(tm.video, "generate_video"),
+                patch.object(tm.lip_sync, "run_lip_sync") as run_lip_sync,
+            ):
+                final_video_paths, combined_video_paths = tm.generate_final_videos(
+                    task_id=task_id,
+                    params=params,
+                    downloaded_videos=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    subtitle_path="subtitle.srt",
+                )
+
+            task_dir = utils.task_dir(task_id)
+            self.assertEqual(
+                final_video_paths,
+                [os.path.join(task_dir, "final-lipsync-1.mp4")],
+            )
+            self.assertEqual(
+                combined_video_paths,
+                [os.path.join(task_dir, "combined-1.mp4")],
+            )
+            run_lip_sync.assert_called_once_with(
+                video_file=os.path.join(task_dir, "final-1.mp4"),
+                audio_file="audio.mp3",
+                output_file=os.path.join(task_dir, "final-lipsync-1.mp4"),
+                command_template="echo ok",
+                workdir=utils.root_dir(),
+            )
+        finally:
+            tm.sm.state.delete_task(task_id)
+
+    def test_generate_final_videos_fails_when_lip_sync_fails(self):
+        task_id = "test-lip-sync-fails"
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="local",
+            video_count=1,
+            lip_sync_enabled=True,
+            lip_sync_command="echo ok",
+        )
+        tm.sm.state.update_task(
+            task_id,
+            state=tm.const.TASK_STATE_PROCESSING,
+            progress=50,
+        )
+
+        try:
+            with (
+                patch.object(tm.video, "combine_videos"),
+                patch.object(tm.video, "generate_video"),
+                patch.object(
+                    tm.lip_sync,
+                    "run_lip_sync",
+                    side_effect=RuntimeError("lip sync failed"),
+                ),
+            ):
+                final_video_paths, combined_video_paths = tm.generate_final_videos(
+                    task_id=task_id,
+                    params=params,
+                    downloaded_videos=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    subtitle_path="subtitle.srt",
+                )
+
+            task = tm.sm.state.get_task(task_id)
+            self.assertIsNone(final_video_paths)
+            self.assertIsNone(combined_video_paths)
+            self.assertEqual(task["state"], tm.const.TASK_STATE_FAILED)
+        finally:
+            tm.sm.state.delete_task(task_id)
+
     def test_douyin_source_downloads_online_materials(self):
         params = VideoParams(
             video_subject="coffee",

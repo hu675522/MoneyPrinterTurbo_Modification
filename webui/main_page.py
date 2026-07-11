@@ -37,7 +37,7 @@ def get_main_page_column_weights() -> list[float]:
 
 
 def get_settings_toggle_column_weights() -> list[float]:
-    return [1.0, 1.08]
+    return get_settings_content_column_weights()
 
 
 def get_settings_content_column_weights() -> list[float]:

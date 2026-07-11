@@ -25,6 +25,17 @@ _SENSITIVE_QUERY_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+def _create_gemini_client(api_key: str, base_url: str = ""):
+    from google import genai
+    from google.genai import types
+
+    http_options = None
+    if base_url:
+        http_options = types.HttpOptions(base_url=base_url)
+    return genai.Client(api_key=api_key, http_options=http_options)
+
+
 DEFAULT_SCRIPT_SYSTEM_PROMPT = """
 # Role: Video Script Generator
 
@@ -385,50 +396,85 @@ def _generate_response(prompt: str) -> str:
                     raise Exception(f"[{llm_provider}] returned an empty response")
 
             if llm_provider == "gemini":
-                import google.generativeai as genai
-
-                if not base_url:
-                    genai.configure(api_key=api_key, transport="rest")
-                else:
-                    genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
-
-                generation_config = {
-                    "temperature": 0.5,
-                    "top_p": 1,
-                    "top_k": 1,
-                    "max_output_tokens": 2048,
-                }
-
-                safety_settings = [
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                ]
-
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings,
-                )
-
                 try:
+                    from google.genai import types
+
+                    client = _create_gemini_client(api_key=api_key, base_url=base_url)
+                    safety_settings = [
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HARASSMENT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HATE_SPEECH",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                    ]
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.5,
+                            top_p=1,
+                            top_k=1,
+                            max_output_tokens=2048,
+                            safety_settings=safety_settings,
+                        ),
+                    )
+                    generated_text = response.text
+                except ImportError:
+                    import google.generativeai as genai
+
+                    if not base_url:
+                        genai.configure(api_key=api_key, transport="rest")
+                    else:
+                        genai.configure(
+                            api_key=api_key,
+                            transport="rest",
+                            client_options={"api_endpoint": base_url},
+                        )
+
+                    generation_config = {
+                        "temperature": 0.5,
+                        "top_p": 1,
+                        "top_k": 1,
+                        "max_output_tokens": 2048,
+                    }
+                    safety_settings = [
+                        {
+                            "category": "HARM_CATEGORY_HARASSMENT",
+                            "threshold": "BLOCK_ONLY_HIGH",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_HATE_SPEECH",
+                            "threshold": "BLOCK_ONLY_HIGH",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_ONLY_HIGH",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_ONLY_HIGH",
+                        },
+                    ]
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=generation_config,
+                        safety_settings=safety_settings,
+                    )
                     response = model.generate_content(prompt)
                     candidates = response.candidates
                     generated_text = candidates[0].content.parts[0].text
-                except (AttributeError, IndexError) as e:
+                except (AttributeError, IndexError, TypeError) as e:
                     logger.warning(
                         f"gemini returned invalid response content: {str(e)}"
                     )

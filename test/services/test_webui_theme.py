@@ -110,6 +110,13 @@ class TestWebuiTheme(unittest.TestCase):
         self.assertIn('getAttribute("data-mpt-theme") !== theme', script)
         self.assertIn("setInterval(syncTheme, 600)", script)
 
+    def test_theme_sync_uses_srcdoc_compatible_html(self):
+        script = get_streamlit_theme_sync_script()
+
+        self.assertIn("<script>", script)
+        self.assertIn("parent.document", script)
+        self.assertNotIn("data:text/html", script)
+
     def test_theme_avoids_unstable_visual_patterns(self):
         css = get_streamlit_style().lower()
 

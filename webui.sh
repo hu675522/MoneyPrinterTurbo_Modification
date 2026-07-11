@@ -10,6 +10,11 @@
 CURRENT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export PYTHONPATH="$CURRENT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
+if [ -n "${HOME:-}" ] && [ -d "$HOME/.local/bin" ]; then
+  PATH="$HOME/.local/bin:$PATH"
+  export PATH
+fi
+
 # 0.0.0.0 只能表示“监听所有网卡”，不适合作为浏览器访问地址。
 # macOS/Linux 下浏览器打开 http://0.0.0.0:8501 可能会经过代理或网关，
 # 最终出现 502。默认绑定并打开 127.0.0.1，与 Windows 启动脚本保持一致。

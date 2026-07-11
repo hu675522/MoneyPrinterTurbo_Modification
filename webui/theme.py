@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 def get_streamlit_style() -> str:
@@ -654,4 +653,4 @@ def get_streamlit_theme_sync_script() -> str:
 
 def apply_streamlit_style():
     st.markdown(get_streamlit_style(), unsafe_allow_html=True)
-    components.html(get_streamlit_theme_sync_script(), height=0, width=0)
+    st.iframe(get_streamlit_theme_sync_script(), height=1, width=1)

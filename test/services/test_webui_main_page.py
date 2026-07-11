@@ -43,8 +43,11 @@ class TestWebuiMainPage(unittest.TestCase):
         self.assertGreaterEqual(weights[1], weights[3])
         self.assertGreaterEqual(weights[2], weights[3])
 
-    def test_settings_toggle_row_uses_two_balanced_columns(self):
-        self.assertEqual(get_settings_toggle_column_weights(), [1.0, 1.08])
+    def test_settings_toggle_row_aligns_with_expanded_content(self):
+        self.assertEqual(
+            get_settings_toggle_column_weights(),
+            get_settings_content_column_weights(),
+        )
 
     def test_settings_content_gives_basic_settings_more_room(self):
         weights = get_settings_content_column_weights()
@@ -79,6 +82,7 @@ class TestWebuiMainPage(unittest.TestCase):
             source.index("basic_settings_col, api_key_col = st.columns"),
             source.index("render_basic_settings_content"),
         )
+        self.assertIn("basic_toggle_col, api_key_toggle_col = st.columns", source)
         self.assertLess(
             source.index("render_basic_settings_content"),
             source.index("render_api_key_content"),

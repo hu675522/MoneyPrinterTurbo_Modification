@@ -58,7 +58,7 @@ def scroll_to_bottom():
         scroll(1);
     </script>
     """
-    st.components.v1.html(js, height=0, width=0)
+    st.iframe(js, height=1, width=1)
 
 
 def init_log(root_dir: str):

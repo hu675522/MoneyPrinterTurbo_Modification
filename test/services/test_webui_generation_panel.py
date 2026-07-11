@@ -53,6 +53,42 @@ class TestWebuiGenerationPanel(unittest.TestCase):
 
         self.assertEqual(get_generation_error_key(params, {}), "")
 
+    def test_generation_validation_requires_local_source_for_lip_sync(self):
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="pexels",
+            lip_sync_enabled=True,
+            lip_sync_command="echo ok",
+        )
+
+        self.assertEqual(
+            get_generation_error_key(params, {"pexels_api_keys": ["key"]}),
+            "Lip Sync Requires Local Video Source",
+        )
+
+    def test_generation_validation_requires_lip_sync_command(self):
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="local",
+            lip_sync_enabled=True,
+            lip_sync_command="",
+        )
+
+        self.assertEqual(
+            get_generation_error_key(params, {}),
+            "Please Configure Lip Sync Command",
+        )
+
+    def test_generation_validation_allows_configured_lip_sync(self):
+        params = VideoParams(
+            video_subject="coffee",
+            video_source="local",
+            lip_sync_enabled=True,
+            lip_sync_command="echo ok",
+        )
+
+        self.assertEqual(get_generation_error_key(params, {}), "")
+
     def test_generation_validation_allows_douyin_with_api_url(self):
         params = VideoParams(video_subject="coffee", video_source="douyin")
 

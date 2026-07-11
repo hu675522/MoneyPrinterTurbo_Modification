@@ -1,4 +1,4 @@
-﻿import os
+import os
 from uuid import uuid4
 
 import streamlit as st
@@ -52,6 +52,17 @@ def get_generation_error_key(params, app_config: dict) -> str:
         douyin_error_key = get_douyin_material_config_error_key(app_config)
         if douyin_error_key:
             return douyin_error_key
+
+    if getattr(params, "lip_sync_enabled", False):
+        if params.video_source not in LOCAL_MATERIAL_SOURCES:
+            return "Lip Sync Requires Local Video Source"
+        lip_sync_command = (
+            getattr(params, "lip_sync_command", None)
+            or app_config.get("lip_sync_command", "")
+            or ""
+        ).strip()
+        if not lip_sync_command:
+            return "Please Configure Lip Sync Command"
 
     return ""
 

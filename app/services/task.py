@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice, upload_post
+from app.services import lip_sync, llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -202,7 +202,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         - subtitle_path: path to the generated subtitle file
     '''
     logger.info("\n\n## generating subtitle")
-    if not params.subtitle_enabled or sub_maker is None:
+    if not params.subtitle_enabled:
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
@@ -210,18 +210,22 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
     subtitle_fallback = False
-    if subtitle_provider == "edge":
+    if subtitle_provider == "edge" and sub_maker is not None:
         voice.create_subtitle(
             text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
         )
         if not os.path.exists(subtitle_path):
             subtitle_fallback = True
             logger.warning("subtitle file not found, fallback to whisper")
+    elif sub_maker is None:
+        subtitle_fallback = True
+        logger.info("subtitle maker is unavailable, fallback to whisper")
 
     if subtitle_provider == "whisper" or subtitle_fallback:
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-        logger.info("\n\n## correcting subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+        if video_script:
+            logger.info("\n\n## correcting subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
     subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
     if not subtitle_lines:
@@ -326,6 +330,27 @@ def generate_final_videos(
             output_file=final_video_path,
             params=params,
         )
+
+        if lip_sync.is_enabled(params):
+            lip_synced_video_path = path.join(
+                utils.task_dir(task_id), f"final-lipsync-{index}.mp4"
+            )
+            logger.info(
+                f"\n\n## lip syncing video: {index} => {lip_synced_video_path}"
+            )
+            try:
+                lip_sync.run_lip_sync(
+                    video_file=final_video_path,
+                    audio_file=audio_file,
+                    output_file=lip_synced_video_path,
+                    command_template=lip_sync.get_command_template(params),
+                    workdir=utils.root_dir(),
+                )
+            except Exception as exc:
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+                logger.error(f"lip sync failed: {str(exc)}")
+                return None, None
+            final_video_path = lip_synced_video_path
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)

@@ -95,26 +95,19 @@
 - [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
-- v2.0.1版本修复内容
-  - 修复抖音素材接口请求方式问题：TikHub 抖音搜索接口改为 POST JSON 请求，避免错误使用 GET 导致接口调用失败。
-  - 增强抖音素材返回解析：兼容 TikHub 抖音搜索结果中的嵌套视频数据结构，提升素材识别成功率。
-  - 优化 TikHub 错误提示：针对 402、403、404 等状态码给出更准确的日志说明，避免把余额不足、权限不足或接口地址错误误判为网络/VPN问题。
-  - 增强日志安全性：隐藏 Authorization、Bearer Token、API Key 等敏感信息，避免接口错误响应回显时泄露密钥。
-  - 修复 WebUI 抖音素材配置校验：区分“直接素材接口”和“第三方数据接口 + 授权解析”两种模式，缺少不同配置时显示对应提示。
-  - 修复 WebUI 任务日志 handler 重复移除导致的异常：避免出现 ValueError: There is no existing handler with id ...。
-  - 优化任务失败提示：素材下载失败时不再统一提示“大陆网络/VPN问题”，改为提示素材为空、接口报错、余额不足、免费额度不可用、接口地址错误或下载地址无效等可能原因。
-  - 优化 TTS 失败提示：移除过度指向 VPN 的提示，改为提示检查 TTS 网络、代理、账号额度与语音语言配置。
-
-- V2.0.0版本更新亮点：
+- V2.1.0 版本更新亮点：
   - 查看修改内容请移步：docs/frontend-optimization-progress.md
-  - 新增最新 WebUI 截图：docs/webui-v2.0.0.png。
+  - 新增本地视频 + 自定义音频的口播对口型工作流，macOS 已完成真实视频验证。
+  - 新增跨平台 Wav2Lip Python 启动器，以及 Windows `.bat`、macOS/Linux `.sh` 辅助入口。
+  - 修复上传自定义语音后字幕与视频合成链路，缺少 TTS 字幕对象时可回退到 Whisper。
+  - 优化 Light、Dark、System 三种主题、顶部基础设置/API Key 面板对齐和任务历史界面。
   - 提升 Windows 启动兼容性：webui.bat 现在也能从父 lib 目录中检测到捆绑的 Python、FFmpeg 和 ImageMagick 运行时工具。
   - 包含最新的 WebUI 优化，包括紧凑布局、主题修复、任务面板、API 密钥管理器布局以及抖音素材源模式。
   - 新增对抖音素材源的支持，支持授权在线素材、第三方元数据 API 及授权解析器服务，以及可选的 AI 重绘/增强钩子。
   - 主题三模式完整适配、抖音素材链路合规升级、任务系统大重构、Main.py 模块化完成。
 - 版本包：
   - Windows 版本包生成为：
-  - dist/MoneyPrinterTurbo_Modification_v2.0.1_Windows.zip。
+  - dist/MoneyPrinterTurbo_Modification_v2.1.0_Full.zip。
   - 从解压后的项目目录运行 webui.bat 即可启动 WebUI。
 - 修复内容（9 项） 
   - 以主题系统为主，覆盖 Dark/System 主题显示异常、按钮文字颜色、抖音模式切换体验、顶部标题遮挡、字幕滑块换行、文案按钮换行、基础设置乱码和文件头 BOM 问题。
@@ -194,9 +187,12 @@
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
 
-- GitHub Release: https://github.com/hu675522/MoneyPrinterTurbo_Modification/releases/tag/v2.0.1
+- GitHub Release: https://github.com/hu675522/MoneyPrinterTurbo_Modification/releases/tag/v2.1.0
 
-下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
+下载后：
+
+- Windows：可以先**双击执行** `update.bat` 检查运行环境并补装依赖；如果使用的是 Release 压缩包，它会跳过源码更新。然后双击 `start.bat` 启动。
+- macOS / Linux：进入解压后的项目根目录，先运行 `./update.sh` 安装依赖，再运行 `./start.sh` 启动 WebUI。API 服务可运行 `./api.sh`。
 
 启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 

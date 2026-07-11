@@ -85,8 +85,10 @@ class VideoParams(BaseModel):
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
+    lip_sync_enabled: bool = False
+    lip_sync_command: Optional[str] = ""
     
-    custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
+    custom_audio_file: Optional[str] = None  # Custom audio file path, skips TTS.
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""

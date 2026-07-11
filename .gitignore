@@ -38,3 +38,12 @@ streamlit.log
 .codegraph
 /docs/superpowers
 .understand-anything
+
+# Local lip-sync runtime and generated files
+/tools/lipsync/Wav2Lip/.git/
+/tools/lipsync/Wav2Lip/checkpoints/*.pth
+/tools/lipsync/Wav2Lip/face_detection/detection/sfd/*.pth
+/tools/lipsync/Wav2Lip/temp/*
+!/tools/lipsync/Wav2Lip/temp/README.md
+/tools/lipsync/Wav2Lip/results/*
+!/tools/lipsync/Wav2Lip/results/README.md

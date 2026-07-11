@@ -229,6 +229,13 @@
     "Coverr API Key deleted successfully": "Coverr API Key deleted successfully",
     "Advanced Video Settings": "Advanced Video Settings",
     "Video Encoder": "Video Encoder",
-    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it."
+    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it.",
+    "Enable Lip Sync": "Enable Lip Sync",
+    "Lip Sync Help": "For local filmed talking-head videos only. The app first generates the voice audio and base video, then calls your configured local lip-sync command.",
+    "Lip Sync Command": "Lip Sync Command",
+    "Lip Sync Command Help": "Use placeholders: {video}, {audio}, {output}, {python}, {workdir}. Cross-platform example: {python} tools/lipsync/run_wav2lip.py {video} {audio} {output}",
+    "Lip Sync Timeout": "Lip Sync Timeout (seconds)",
+    "Lip Sync Requires Local Video Source": "Lip sync requires the Local file video source",
+    "Please Configure Lip Sync Command": "Please configure the lip sync command"
   }
 }

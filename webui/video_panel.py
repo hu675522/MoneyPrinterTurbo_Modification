@@ -54,8 +54,6 @@ def render_video_panel(*, config, params, tr):
             (tr("Coverr"), "coverr"),
             (tr("Local file"), "local"),
             (tr("TikTok"), "douyin"),
-            (tr("Bilibili"), "bilibili"),
-            (tr("Xiaohongshu"), "xiaohongshu"),
         ]
 
         saved_video_source_name = config.app.get("video_source", "pexels")
@@ -177,5 +175,33 @@ def render_video_panel(*, config, params, tr):
                 help=tr("Video Encoder Help"),
             )
             config.app["video_codec"] = video_codec_options[selected_codec_index][1]
+
+            if params.video_source in LOCAL_MATERIAL_SOURCES:
+                params.lip_sync_enabled = st.checkbox(
+                    tr("Enable Lip Sync"),
+                    value=bool(config.app.get("lip_sync_enabled", False)),
+                    help=tr("Lip Sync Help"),
+                    key="lip_sync_enabled",
+                )
+                config.app["lip_sync_enabled"] = params.lip_sync_enabled
+                if params.lip_sync_enabled:
+                    params.lip_sync_command = st.text_area(
+                        tr("Lip Sync Command"),
+                        value=config.app.get("lip_sync_command", ""),
+                        help=tr("Lip Sync Command Help"),
+                        key="lip_sync_command",
+                    ).strip()
+                    config.app["lip_sync_command"] = params.lip_sync_command
+                    config.app["lip_sync_timeout"] = int(
+                        st.number_input(
+                            tr("Lip Sync Timeout"),
+                            min_value=60,
+                            max_value=7200,
+                            value=int(config.app.get("lip_sync_timeout", 1800)),
+                            step=60,
+                        )
+                    )
+            else:
+                params.lip_sync_enabled = False
 
     return uploaded_files

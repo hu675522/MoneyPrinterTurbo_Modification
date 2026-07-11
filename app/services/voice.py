@@ -960,6 +960,32 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
     return None
 
 
+def _create_gemini_client(api_key: str):
+    from google import genai
+
+    return genai.Client(api_key=api_key)
+
+
+def _extract_gemini_audio_data(response):
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        return None
+
+    content = getattr(candidates[0], "content", None)
+    parts = getattr(content, "parts", None)
+    if not parts:
+        return None
+
+    for part in parts:
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data:
+            audio_data = getattr(inline_data, "data", None)
+            if audio_data:
+                return audio_data
+
+    return None
+
+
 def gemini_tts(
     text: str,
     voice_name: str,
@@ -983,7 +1009,6 @@ def gemini_tts(
     import base64
     import io
     from pydub import AudioSegment
-    import google.generativeai as genai
     _configure_pydub_ffmpeg(AudioSegment)
     
     try:
@@ -993,41 +1018,53 @@ def gemini_tts(
             logger.error("Gemini API key is not set")
             return None
             
-        genai.configure(api_key=api_key)
-        
         logger.info(f"start, voice name: {voice_name}, try: 1")
-        
-        # 使用Gemini TTS API
-        model = genai.GenerativeModel("gemini-2.5-flash-preview-tts")
-        
-        generation_config = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": voice_name
+
+        try:
+            from google.genai import types
+
+            client = _create_gemini_client(api_key)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-preview-tts",
+                contents=text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice_name
+                            )
+                        )
+                    ),
+                ),
+            )
+        except ImportError:
+            import google.generativeai as genai
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash-preview-tts")
+            generation_config = {
+                "response_modalities": ["AUDIO"],
+                "speech_config": {
+                    "voice_config": {
+                        "prebuilt_voice_config": {
+                            "voice_name": voice_name
+                        }
                     }
                 }
             }
-        }
-        
-        response = model.generate_content(
-            contents=text,
-            generation_config=generation_config
-        )
+            response = model.generate_content(
+                contents=text,
+                generation_config=generation_config
+            )
         
         # 检查响应
-        if not response.candidates or not response.candidates[0].content:
+        if not getattr(response, "candidates", None):
             logger.error("No audio content received from Gemini TTS")
             return None
             
         # 获取音频数据
-        audio_data = None
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                audio_data = part.inline_data.data
-                break
-                
+        audio_data = _extract_gemini_audio_data(response)
         if not audio_data:
             logger.error("No audio data found in response")
             return None
@@ -1056,8 +1093,14 @@ def gemini_tts(
             logger.error(f"Failed to load PCM audio: {e}")
             return None
         
+        voice_dir = os.path.dirname(os.path.abspath(voice_file))
+        if voice_dir:
+            os.makedirs(voice_dir, exist_ok=True)
+
         # 导出为MP3格式
-        audio_segment.export(voice_file, format="mp3")
+        exported_file = audio_segment.export(voice_file, format="mp3")
+        if hasattr(exported_file, "close"):
+            exported_file.close()
         
         logger.info(f"completed, output file: {voice_file}")
         

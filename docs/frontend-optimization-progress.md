@@ -1,5 +1,162 @@
 # Frontend Optimization Progress
 
+## v2.1.0 发布整理（2026-07-11）
+
+- 版本号已从 `2.0.1` 升级为 `2.1.0`，同步到项目元数据、运行时显示、HTTP User-Agent 和锁文件。
+- `config.toml` 中所有 API Key 已清空；发布包不携带用户凭据。
+- 新增 `docs/release-v2.1.0.md`，集中整理本版本新增、优化、验证结果和未完成项目。
+- 完整发布包命名为 `dist/MoneyPrinterTurbo_Modification_v2.1.0_Full.zip`，包含源码、Windows 便携环境、当前 macOS 环境和 Wav2Lip 模型。
+- Windows 便携环境尚未完成 Wav2Lip 依赖与真机验证，因此 Windows 对口型仍列为未完成，不能按已支持功能对外承诺。
+
+## 本轮更新（2026-07-11）：对口型 Windows 兼容脚本
+
+- 新增跨平台 Wav2Lip 启动入口。
+  - 新增 `tools/lipsync/run_wav2lip.py`，由当前运行 MoneyPrinterTurbo 的 Python 执行，避免 macOS/Windows 分别硬编码 Python 路径。
+  - 新增 `tools/lipsync/run_wav2lip.bat`，Windows 用户可以手动调用，也可以作为配置命令使用。
+  - wrapper 会自动补充常见 FFmpeg 路径：`~/.local/bin`、Windows 一键包 `lib/ffmpeg`、`imageio_ffmpeg` 自带二进制所在目录。
+- 对口型命令增加 `{python}` 占位符。
+  - `app/services/lip_sync.py` 支持 `{python}`，会展开为当前进程的 Python 可执行文件。
+  - `config.toml` / `config.example.toml` 默认命令改为跨平台形式：
+    `{python} tools/lipsync/run_wav2lip.py {video} {audio} {output}`。
+  - WebUI 中英俄帮助文案同步补充 `{python}`。
+- 保留原 macOS/Linux shell wrapper。
+  - `tools/lipsync/run_wav2lip.sh` 仍可手动使用，避免破坏已跑通的 macOS 流程。
+
+待验证：
+
+- Windows 真机上执行完整口播生成，确认便携 Python、FFmpeg、Torch/Wav2Lip 权重路径都能正常工作。
+- Windows 下长视频对口型耗时和内存占用仍需要实测。
+
+验证：
+
+```bash
+.venv/bin/python -m py_compile app/services/lip_sync.py tools/lipsync/run_wav2lip.py test/services/test_lip_sync.py
+.venv/bin/python tools/lipsync/run_wav2lip.py --help
+.venv/bin/python -m json.tool webui/i18n/en.json
+.venv/bin/python -m json.tool webui/i18n/zh.json
+.venv/bin/python -m json.tool webui/i18n/ru.json
+.venv/bin/python -m unittest test.services.test_lip_sync test.services.test_task test.services.test_webui_generation_panel test.services.test_webui_i18n
+.venv/bin/python tools/lipsync/run_wav2lip.py storage/lipsync-test/input-4s.mp4 storage/lipsync-test/audio-4s.wav storage/lipsync-test/wav2lip-python-wrapper-smoke.mp4
+/Users/huchangcun/.local/bin/ffmpeg -hide_banner -i storage/lipsync-test/wav2lip-python-wrapper-smoke.mp4 -f null -
+.venv/bin/python -m unittest discover -s test
+```
+
+结果：macOS 下跨平台 Python wrapper 已真实生成 4 秒对口型测试视频 `storage/lipsync-test/wav2lip-python-wrapper-smoke.mp4`；FFmpeg 解码检查通过，输出为 360x640、30fps、带 AAC 音频的 9:16 MP4。完整测试通过：`Ran 307 tests ... OK (skipped=5)`。
+
+## 本轮更新（2026-07-06）：本地 Wav2Lip 对口型落地验证
+
+- 在 macOS 项目虚拟环境中补齐 Wav2Lip 运行依赖。
+  - 已安装 `torch`、`torchvision`、`opencv-python`、`librosa`、`scipy`、`soundfile`、`numba`、`gdown`。
+  - 已下载 Wav2Lip 主模型 `tools/lipsync/Wav2Lip/checkpoints/wav2lip_gan.pth`。
+  - 已下载 S3FD 人脸检测模型 `tools/lipsync/Wav2Lip/face_detection/detection/sfd/s3fd.pth`，避免运行时临时联网下载。
+- 新增项目内置 Wav2Lip 启动脚本。
+  - 新增 `tools/lipsync/run_wav2lip.sh`，统一接收 `<input-video> <input-audio> <output-video>`。
+  - 脚本会自动定位项目 `.venv`、Wav2Lip 目录和 `~/.local/bin/ffmpeg`，并把相对输入输出路径转换为绝对路径。
+  - 默认保留输入视频分辨率，避免口播成片被意外降清晰度。
+- 修复 Wav2Lip 在当前 macOS/Python 依赖栈下的兼容问题。
+  - `audio.py` 适配新版 `librosa.filters.mel` 关键字参数签名。
+  - `inference.py` 兼容 PyTorch 2.6+ 的 `weights_only` 行为，并支持 TorchScript 版 Wav2Lip 权重直接推理。
+  - `sfd_detector.py` 显式导入 `torch`，并兼容新版 PyTorch 权重加载参数。
+- 配置已指向本地可用命令。
+  - `config.toml` / `config.example.toml` 的 `lip_sync_command` 已设置为：
+    `sh tools/lipsync/run_wav2lip.sh {video} {audio} {output}`。
+  - `lip_sync_enabled` 保持 `false`，需要时在 WebUI 勾选开启，避免普通任务默认进入耗时后处理。
+
+验证：
+
+```bash
+MoneyPrinterTurbo/.venv/bin/python -c "import torch, cv2, librosa, scipy, soundfile; print('ok')"
+cd MoneyPrinterTurbo/tools/lipsync/Wav2Lip && ../../../.venv/bin/python inference.py --help
+cd MoneyPrinterTurbo && sh tools/lipsync/run_wav2lip.sh storage/lipsync-test/input-4s.mp4 storage/lipsync-test/audio-4s.wav storage/lipsync-test/wav2lip-smoke-preserve.mp4
+/Users/huchangcun/.local/bin/ffmpeg -hide_banner -i MoneyPrinterTurbo/storage/lipsync-test/wav2lip-smoke-preserve.mp4 -f null -
+cd MoneyPrinterTurbo && .venv/bin/python -m unittest discover -s test
+```
+
+结果：已使用本地拍摄视频样本生成 4 秒对口型 smoke test，输出文件为 `storage/lipsync-test/wav2lip-smoke-preserve.mp4`；FFmpeg 解码检查通过，输出为 360x640、30fps、带 AAC 音频的 9:16 MP4。完整测试通过：`Ran 304 tests ... OK (skipped=5)`。
+
+## 本轮更新（2026-07-05）：自定义语音与对口型工作流
+
+- 修复“上传自己的语音后无法完整合成”的链路问题。
+  - 自定义音频仍会跳过 TTS，但不再因为没有 TTS 字幕对象而直接放弃字幕生成。
+  - 当开启字幕且上传音频没有 `sub_maker` 时，任务层会自动回退到 Whisper 从音频生成字幕，并在有文案时继续执行字幕校正。
+  - 更新 `VideoParams.custom_audio_file` 注释，明确上传音频只跳过 TTS，不再等同于禁用字幕。
+- 新增本地对口型后处理入口。
+  - 新增 `app/services/lip_sync.py`，通过可配置命令调用本地对口型模型，支持 `{video}`、`{audio}`、`{output}`、`{workdir}` 占位符。
+  - 完整视频生成后，如果启用对口型，会把基础视频和生成/上传的音频交给本地命令，生成 `final-lipsync-{index}.mp4` 作为最终结果。
+  - 对口型失败会将任务标记为失败并保留清晰日志，避免静默产出错误视频。
+- WebUI 增加本地口播视频配置。
+  - 在“高级视频设置”中，当视频来源为“本地文件”时显示“启用对口型”、命令输入框和超时时间。
+  - 生成前校验：对口型只允许本地视频来源，且必须配置本地对口型命令。
+  - 中英俄多语言文案已补齐，避免 i18n 静态扫描失败。
+- 配置文件补齐默认项。
+  - `config.toml` / `config.example.toml` 新增 `lip_sync_enabled`、`lip_sync_command`、`lip_sync_timeout`。
+  - 示例配置说明可接入 Wav2Lip、MuseTalk 或其它本地对口型工具；项目本身只负责把视频、音频和输出路径传给本地命令。
+
+验证：
+
+```bash
+.venv/bin/python -m py_compile app/services/task.py app/services/lip_sync.py app/models/schema.py webui/video_panel.py webui/generation_panel.py test/services/test_task.py test/services/test_webui_generation_panel.py
+.venv/bin/python -m json.tool webui/i18n/en.json
+.venv/bin/python -m json.tool webui/i18n/zh.json
+.venv/bin/python -m json.tool webui/i18n/ru.json
+.venv/bin/python -m unittest test.services.test_task test.services.test_webui_generation_panel test.services.test_webui_i18n
+.venv/bin/python -m unittest discover -s test
+```
+
+结果：语法检查、JSON 校验、相关单元测试和完整测试均通过；完整测试结果为 `Ran 304 tests ... OK (skipped=5)`。
+
+## 本轮更新（2026-07-04）：v2.0.1 发版收尾
+
+- 补齐 macOS / Linux 外层启动入口。
+  - 新增根目录 `start.sh`、`api.sh`、`update.sh`，和 Windows 的 `start.bat`、`api.bat`、`update.bat` 并存。
+  - `update.sh` 优先使用 `uv sync --frozen`；没有 `uv` 时自动创建 `MoneyPrinterTurbo/.venv` 并用 pip 安装依赖，避免污染系统 Python。
+  - 修复 `webui.sh` 的 Windows 换行，确保 macOS 的 `/bin/sh` 可以正常解析。
+  - 新增根目录 `MACOS.md`，说明 macOS 首次运行、FFmpeg 和 API 服务启动方式。
+  - 已在 macOS 上完成 `.venv` 依赖安装，并用 `./start.sh` 启动 WebUI；`curl -I http://127.0.0.1:8501` 返回 `HTTP/1.1 200 OK`。
+  - 已将项目虚拟环境中的 macOS FFmpeg 二进制安装为用户级命令 `~/.local/bin/ffmpeg`，新 zsh 终端可直接执行 `ffmpeg -version`。
+  - `start.sh`、`api.sh`、`update.sh` 和 `webui.sh` 会自动把 `~/.local/bin` 加入当前进程 `PATH`，避免 GUI/终端启动时路径不一致。
+- 处理后续低优先级兼容任务。
+  - `webui/theme.py` 和 `webui/webui_utils.py` 已从 `streamlit.components.v1.html` / `components.html` 迁移到 `st.iframe`，消除 Streamlit 旧组件废弃提示。
+  - 修复 `st.iframe` 迁移后的 System/Dark 主题异常：主题同步脚本改为直接传入 HTML 字符串，由 Streamlit 以 `srcdoc` 嵌入，避免 `data:` URL 跨源导致脚本无法稳定读取父页面主题状态。
+  - `app/services/llm.py` 和 `app/services/voice.py` 的 Gemini 调用优先使用新版 `google.genai` SDK；旧 `google.generativeai` 仅保留为缺少新版包时的兜底。
+  - `requirements.txt`、`pyproject.toml` 和 `uv.lock` 已补齐 `google-genai==2.10.0`。
+- 清理残留文件头 BOM 与乱码注释。
+  - 修复 `pyproject.toml`、`app/config/config.py`、`app/services/material.py`、`webui/generation_panel.py`、`docs/release-v2.0.1.md` 的 BOM/乱码风险。
+  - `test.services.test_webui_i18n` 静态扫描已恢复通过。
+- 收起未完成素材源入口。
+  - `webui/video_panel.py` 暂时移除 Bilibili / Xiaohongshu 可选项，避免用户选到尚未接入后端的素材源后生成失败。
+  - 多语言文案仍保留，后续真正接入平台时可以重新打开入口。
+- 对齐一键包默认配置。
+  - `config.toml` 默认素材源回到 `pexels`，默认 LLM provider 回到 `openai`。
+  - 默认视频编码器回到稳定的 `libx264`，比例回到短视频常用 `9:16`。
+  - 补齐 `douyin_material_limit` 与 `evolink_*` 配置项，和示例配置保持一致。
+  - 新增 `douyin_material_api_method = "auto"`：普通授权素材接口默认 GET，TikHub 域名或显式 `post` 时使用 POST JSON。
+- 修复完整测试暴露的兼容问题。
+  - `app/services/material.py` 的抖音 direct 模式兼容通用 GET 素材接口与 TikHub POST JSON 接口，保留授权接口 Key 与 TLS 校验逻辑。
+  - `app/services/voice.py` 的 Gemini TTS 写入前会自动创建输出目录，并关闭 pydub 导出句柄，避免干净环境首次运行失败或资源警告。
+- 修复 Release 包更新体验。
+  - `update.bat` 在无 `.git` 元数据的 Release 压缩包中会跳过源码拉取，并提示用户下载新 Release 或使用 Git clone 更新源码。
+  - `requirements.txt` 修正 `google-generativeai` 包名，避免 legacy pip 更新路径安装失败。
+- 同步 v2.0.1 发布信息。
+  - README 的 Windows 包名和 Release 链接更新到 `v2.0.1`。
+  - `uv.lock` 中项目包版本从 `1.3.0` 同步为 `2.0.1`。
+  - `docs/release-v2.0.1.md` 补充 Windows 包名和 Release 包更新行为说明。
+
+验证：
+
+```powershell
+python3 -m py_compile app/config/config.py app/services/material.py webui/generation_panel.py webui/video_panel.py scripts/check_python_runtime.py
+python3 scripts/check_python_runtime.py
+python3 -m unittest test.services.test_python_runtime_version
+python3 -m unittest test.services.test_webui_i18n
+python3 -m unittest discover -s test
+sh -n ../start.sh ../api.sh ../update.sh webui.sh
+./start.sh
+curl -I http://127.0.0.1:8501
+```
+
+结果：上述语法检查、运行时声明检查、i18n 静态扫描、完整单元测试、macOS 依赖安装、FFmpeg 检查和 WebUI HTTP 冒烟均通过；完整测试结果为 `Ran 298 tests ... OK (skipped=5)`。
+
 ## 本轮更新（2026-06-24）
 
 - 修复抖音素材来源模式切换体验和字段标题冗余。
